@@ -1,6 +1,6 @@
 ====================================================
  GLOBAL LED EXPERIENCE - CONFIGURADOR DE NOTEBOOK
- Versao 3.6.1
+ Versao 3.7.0
 ====================================================
 
 COMO USAR (tecnico em campo)
@@ -98,9 +98,16 @@ ATUALIZACOES E REINICIO (v3.6.0)
  Se quiser o reinicio automatico, marque "Reiniciar sozinho apos a
  atualizacao": ele so acontece de madrugada (do horario escolhido ate
  as 06:00) e so quando o Windows Update pediu.
- NOTEBOOK JA CONFIGURADO QUE ESTA REINICIANDO SOZINHO: abra o kit e
- clique em "DESLIGAR REINICIO AUTOMATICO AGORA". Nao precisa passar
- o resto do kit de novo.
+ REINICIO SEMANAL (v3.7.0): toda segunda-feira as 00:00 o notebook
+ reinicia sozinho, sem aviso e sem nenhuma janela no painel, para
+ concluir as atualizacoes. Se ele estiver desligado nesse horario, o
+ reinicio fica para a semana seguinte (nunca acontece de dia).
+ Para nao ter, desmarque "Reiniciar toda segunda-feira as 00:00".
+ IMPORTANTE: depois do reinicio, o programa que manda o conteudo para
+ o painel precisa abrir sozinho. Confira isso no notebook de teste.
+ NOTEBOOK JA CONFIGURADO: abra o kit e clique em "DESLIGAR REINICIO
+ AUTOMATICO AGORA". Ele desliga os reinicios fora de hora e aplica o
+ reinicio semanal, sem passar o resto do kit de novo.
 
 INSTALACAO DOS APLICATIVOS (v3.5.0)
  A instalacao automatica foi RETIRADA: ela travava e deixava os
