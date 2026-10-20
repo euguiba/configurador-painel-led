@@ -1,6 +1,6 @@
 ====================================================
  GLOBAL LED EXPERIENCE - CONFIGURADOR DE NOTEBOOK
- Versao 3.6.0
+ Versao 3.6.1
 ====================================================
 
 COMO USAR (tecnico em campo)
