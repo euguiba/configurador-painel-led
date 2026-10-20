@@ -1,8 +1,23 @@
 {
-  "versao": "3.5.0",
-  "data": "2026-09-23",
+  "versao": "3.6.0",
+  "data": "2026-10-20",
   "arquivo": "/downloads/ConfiguradorPainelLED.ps1",
   "historico": [
+    {
+      "numero": "3.6.0",
+      "data": "2026-10-20",
+      "resumo": "Fim dos reinicios sozinhos durante o dia: por padrao o notebook nunca reinicia sem o tecnico mandar, e a configuracao ficou mais rapida.",
+      "novo": [
+        "Reinicio automatico DESLIGADO por padrao: o notebook nao reinicia mais sozinho depois de atualizacao nem em horario fixo",
+        "Novo botao 'DESLIGAR REINICIO AUTOMATICO AGORA' para notebooks ja configurados, sem precisar passar o kit inteiro de novo",
+        "Corrigido o verificador antigo que reiniciava o notebook a cada boot e a cada 15 minutos por causa de arquivos pendentes de instaladores e drivers",
+        "Horario ativo do Windows das 06:00 as 00:00 e sem prazo de reinicio forcado: nem atualizacao obrigatoria reinicia durante o dia",
+        "Reinicio automatico opcional agora so acontece de madrugada (do horario escolhido ate 06:00) e so quando o Windows Update pediu",
+        "Atualizacao noturna nao comeca mais de dia quando o notebook liga depois de ficar desligado (deixava o notebook lento)",
+        "Retirada a parte 'Localizar apps e configurar' (atalhos, inicializacao, firewall, procurar apps e pacote pronto): fica so a copia dos instaladores para a area de trabalho",
+        "Verificacao e validacao mais rapidas: nao varrem mais o disco procurando os aplicativos"
+      ]
+    },
     {
       "numero": "3.5.0",
       "data": "2026-09-23",
@@ -403,12 +418,13 @@
     }
   ],
   "novidades": [
-    "Smart App Control (Controle de Aplicativos Inteligente) desligado de forma definitiva: o Windows nao bloqueia mais a abertura e a instalacao dos programas dias depois",
-    "SmartScreen de aplicativos, arquivos e da loja desligado, com instalacao liberada para programas de qualquer origem",
-    "Fim do aviso de 'editor desconhecido' e da marca de origem que travava o AppData do AnyDesk",
-    "Instalacao automatica dos aplicativos retirada: ela travava e deixava os apps pela metade",
-    "Nova opcao marcada por padrao: os instaladores do AnyDesk, LedVision e NovaLCT sao copiados para a pasta 'Instalar Programas LED' na area de trabalho",
-    "Bilhete 'LEIA ANTES.txt' na pasta com a ordem de instalacao para o tecnico",
-    "Validacao final confere o Controle de Aplicativos e o SmartScreen desligados"
+    "Reinicio automatico DESLIGADO por padrao: o notebook nao reinicia mais sozinho depois de atualizacao nem em horario fixo",
+    "Novo botao 'DESLIGAR REINICIO AUTOMATICO AGORA' para notebooks ja configurados, sem precisar passar o kit inteiro de novo",
+    "Corrigido o verificador antigo que reiniciava o notebook a cada boot e a cada 15 minutos por causa de arquivos pendentes de instaladores e drivers",
+    "Horario ativo do Windows das 06:00 as 00:00 e sem prazo de reinicio forcado: nem atualizacao obrigatoria reinicia durante o dia",
+    "Reinicio automatico opcional agora so acontece de madrugada (do horario escolhido ate 06:00) e so quando o Windows Update pediu",
+    "Atualizacao noturna nao comeca mais de dia quando o notebook liga depois de ficar desligado (deixava o notebook lento)",
+    "Retirada a parte 'Localizar apps e configurar' (atalhos, inicializacao, firewall, procurar apps e pacote pronto): fica so a copia dos instaladores para a area de trabalho",
+    "Verificacao e validacao mais rapidas: nao varrem mais o disco procurando os aplicativos"
   ]
 }
