@@ -1,6 +1,6 @@
 ====================================================
  GLOBAL LED EXPERIENCE - CONFIGURADOR DE NOTEBOOK
- Versao 3.5.0
+ Versao 3.6.0
 ====================================================
 
 COMO USAR (tecnico em campo)
@@ -44,31 +44,8 @@ NOTEBOOK NOVO - PULAR CONFIGURACAO INICIAL DO WINDOWS (v3.2.2)
 ORDEM DO PROCESSO (v3.2.3)
   Primeiro o kit faz todos os ajustes do Windows (energia, notificacoes,
   atualizacoes, OneDrive, extras e tema). SO NO FINAL ele remove os
-  programas de fabrica e instala AnyDesk, LedVision e NovaLCT, cria os
-  atalhos e ajusta a barra de tarefas. Assim os aplicativos instalados
-  nunca somem por causa da limpeza.
-
-INSTALACAO DOS APLICATIVOS (v3.3.0) - SEM JANELAS
-  A instalacao agora segue esta ordem, por aplicativo:
-  1) PACOTE PRONTO: se existir em Instaladores\Prontos, o app e copiado para
-     o notebook em segundos (programa, chaves do Windows, configuracoes e
-     atalho). Nenhuma janela, nenhum contrato, nenhum looping.
-  2) INTERNET (winget): se nao houver pacote pronto e o notebook estiver
-     on-line, o kit instala em silencio pelo gerenciador do proprio Windows.
-     Funciona muito bem para o AnyDesk.
-  3) INSTALADOR DA PASTA: so entra se os dois anteriores falharem E a opcao
-     "Tentar instalador com janela (ultimo recurso)" estiver marcada na tela.
-     Ela vem DESMARCADA: sem marcar, nenhuma janela de instalador aparece.
-  No fim, o console mostra por qual caminho cada app entrou (ou o que fazer
-  se faltou).
-
-PASSO OBRIGATORIO: PREPARE O NOTEBOOK MODELO UMA VEZ
-  Instale AnyDesk, LedVision e NovaLCT a mao em UM notebook, abra o
-  configurador e clique em "GERAR PACOTE PRONTO". O kit confere se a copia
-  tem arquivos e programa executavel, mostra o tamanho, copia tambem as
-  configuracoes do usuario e avisa em vermelho se algum dos tres nao estiver
-  instalado. Feito isso, o mesmo pendrive serve para todos os outros
-  notebooks: instalacao em segundos, sem janelas.
+  programas de fabrica, copia os instaladores do AnyDesk, LedVision e
+  NovaLCT para a area de trabalho e ajusta a barra de tarefas.
 
 WINDOWS DEFENDER (v2.9.0)
   Alem das politicas, os servicos e as tarefas do Defender sao desativados.
@@ -83,12 +60,6 @@ ENERGIA (v2.2.3)
  tomada quanto na bateria. Os valores sao gravados como politica do
  Windows e reaplicados por uma tarefa a cada inicializacao, entao
  nao se perdem depois de reiniciar o notebook.
-
-ATALHOS DOS PROGRAMAS (v2.2.3)
- O atalho so e criado quando o programa esta instalado no disco C:.
- Instalador no pendrive nao vira atalho, e a pasta do programa recebe
- permissao para todos os usuarios (fim do erro "o item com referencia
- nesse atalho nao pode ser acessado").
 
 ANTIVIRUS BLOQUEANDO (v2.7.1)
  Coloque o removedor oficial MCPR.exe dentro da pasta Instaladores.
@@ -119,14 +90,17 @@ CONTA DE USUARIO (v2.2.4)
  configuracoes sao gravadas no usuario atual e no perfil padrao
  do Windows.
 
-ATUALIZACOES DO WINDOWS (v3.4.0)
+ATUALIZACOES E REINICIO (v3.6.0)
  O notebook busca e instala as atualizacoes a partir das 00:30.
- O reinicio NAO acontece mais em horario fixo: uma tarefa confere a cada
- 15 minutos se o Windows esta pedindo reinicio e, so nesse caso, reinicia
- na hora, sem contagem na tela, sem mensagem e sem ninguem precisar
- clicar em nada. A tarefa antiga de reinicio diario e apagada sozinha.
- Se preferir que o notebook nunca reinicie sozinho, desmarque na tela a
- opcao "Reiniciar sozinho assim que a atualizacao terminar (sem aviso)".
+ Por padrao ele NUNCA reinicia sozinho: nem depois de atualizacao,
+ nem em horario fixo. O Windows fica com horario ativo das 06:00 as
+ 00:00, entao nem uma atualizacao forcada reinicia durante o dia.
+ Se quiser o reinicio automatico, marque "Reiniciar sozinho apos a
+ atualizacao": ele so acontece de madrugada (do horario escolhido ate
+ as 06:00) e so quando o Windows Update pediu.
+ NOTEBOOK JA CONFIGURADO QUE ESTA REINICIANDO SOZINHO: abra o kit e
+ clique em "DESLIGAR REINICIO AUTOMATICO AGORA". Nao precisa passar
+ o resto do kit de novo.
 
 INSTALACAO DOS APLICATIVOS (v3.5.0)
  A instalacao automatica foi RETIRADA: ela travava e deixava os

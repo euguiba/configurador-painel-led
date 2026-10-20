@@ -395,9 +395,7 @@ function Invoke-WindowsUpdate {
         Set-Reg $au 'AutomaticMaintenanceEnabled' 0    # usa o agendamento acima, nao a manutencao automatica
         Set-Reg $au 'AllowMUUpdateService' 1
 
-        # Reinicio liberado a qualquer hora, sem aviso e sem confirmacao do usuario
-        Set-Reg $au 'NoAutoRebootWithLoggedOnUsers' 0
-        Set-Reg $au 'AlwaysAutoRebootAtScheduledTime' 0
+        # Avisos de reinicio escondidos (quem decide o reinicio e o bloco no final desta funcao)
         Set-Reg $wu 'SetAutoRestartNotificationConfig' 1
         Set-Reg $wu 'AutoRestartNotificationSchedule' 15
         Set-Reg $wu 'SetAutoRestartNotificationDisable' 1
@@ -408,10 +406,6 @@ function Invoke-WindowsUpdate {
         Set-Reg $wu 'UpdateNotificationLevel' 2         # nenhuma notificacao de atualizacao na tela
         Set-Reg 'HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings' 'RestartNotificationsAllowed2' 0
         Write-Log ("Atualizacoes instaladas automaticamente todo dia as {0:00}:00." -f $Hora) 'ok'
-
-        # Sem horario ativo: o reinicio agora acontece sob demanda, nao em hora fixa
-        Set-Reg $wu 'SetActiveHours' 0
-        Write-Log 'Horario ativo desligado: o Windows nao segura mais o reinicio por causa do horario.' 'ok'
 
         # Manutencao automatica do Windows tambem na madrugada, podendo acordar o PC
         Set-Reg 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\Maintenance' 'MaintenanceDisabled' 0
@@ -424,43 +418,94 @@ function Invoke-WindowsUpdate {
         Set-Service -Name wuauserv -StartupType Automatic -ErrorAction SilentlyContinue
         Start-Service -Name wuauserv -ErrorAction SilentlyContinue
 
-        # Tarefa agendada: procura e instala atualizacoes no horario escolhido
-        $ps = "Start-Process -FilePath `$env:SystemRoot\System32\UsoClient.exe -ArgumentList 'StartInteractiveScan' -WindowStyle Hidden; Start-Sleep -Seconds 60; Start-Process -FilePath `$env:SystemRoot\System32\UsoClient.exe -ArgumentList 'StartDownload' -WindowStyle Hidden; Start-Sleep -Seconds 900; Start-Process -FilePath `$env:SystemRoot\System32\UsoClient.exe -ArgumentList 'StartInstall' -WindowStyle Hidden"
+        # Tarefa agendada: procura e instala atualizacoes no horario escolhido.
+        # Sem StartWhenAvailable: se o notebook estava desligado no horario, a tarefa
+        # NAO roda de dia assim que ele liga (isso deixava o notebook lento na configuracao).
+        $ps ="Start-Process -FilePath `$env:SystemRoot\System32\UsoClient.exe -ArgumentList 'StartInteractiveScan' -WindowStyle Hidden; Start-Sleep -Seconds 60; Start-Process -FilePath `$env:SystemRoot\System32\UsoClient.exe -ArgumentList 'StartDownload' -WindowStyle Hidden; Start-Sleep -Seconds 900; Start-Process -FilePath `$env:SystemRoot\System32\UsoClient.exe -ArgumentList 'StartInstall' -WindowStyle Hidden"
         $acao    = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -Command `"$ps`""
         $gatilho = New-ScheduledTaskTrigger -Daily -At $tIni
-        $conf    = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -WakeToRun -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 4)
+        $conf    = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -WakeToRun -ExecutionTimeLimit (New-TimeSpan -Hours 4)
         $princ   = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
         Register-ScheduledTask -TaskName 'PainelLED - Atualizacoes noturnas' -Action $acao -Trigger $gatilho -Settings $conf -Principal $princ -Force -ErrorAction Stop | Out-Null
         Write-Log "Tarefa `"PainelLED - Atualizacoes noturnas`" criada ($HoraInicio, acorda o notebook se preciso)." 'ok'
 
-        # A partir da v3.4.0 nao existe mais reinicio diario em horario fixo
-        if (Get-ScheduledTask -TaskName 'PainelLED - Reinicio noturno' -ErrorAction SilentlyContinue) {
-            Unregister-ScheduledTask -TaskName 'PainelLED - Reinicio noturno' -Confirm:$false -ErrorAction SilentlyContinue
-            Write-Log 'Reinicio diario em horario fixo removido (nao reinicia mais sem motivo).' 'ok'
-        }
+        # Primeiro trava TODO reinicio automatico (Windows e tarefas antigas do kit).
+        Invoke-DesligarReinicioAuto
 
         if ($ReiniciarAposAtualizar) {
-            # Verificador: a cada 15 minutos olha se o Windows esta pedindo reinicio.
-            # So nesse caso reinicia, na hora, sem contagem visivel e sem confirmacao.
-            $chk  = "`$p=@('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired','HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending');"
+            # Opcional: reinicia SO de madrugada (do horario escolhido ate 06:00) e
+            # SO quando o Windows Update realmente pediu. Fora dessa janela, nunca.
+            $minIni = $tIni.Hour * 60 + $tIni.Minute
+            $minFim = 6 * 60
+            $chk  = "`$m=(Get-Date).Hour*60+(Get-Date).Minute; `$ini=$minIni; `$fim=$minFim;"
+            $chk += "if(`$ini -lt `$fim){ `$ok=(`$m -ge `$ini -and `$m -lt `$fim) } else { `$ok=(`$m -ge `$ini -or `$m -lt `$fim) };"
+            $chk += "if(-not `$ok){ exit };"
+            $chk += "`$p=@('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired','HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending');"
             $chk += "`$n=`$false; foreach(`$k in `$p){ if(Test-Path `$k){ `$n=`$true } };"
-            $chk += "if(-not `$n){ `$v=(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name PendingFileRenameOperations -ErrorAction SilentlyContinue).PendingFileRenameOperations; if(`$v){ `$n=`$true } };"
             $chk += "if(`$n){ Start-Process -FilePath `$env:SystemRoot\System32\shutdown.exe -ArgumentList '/r /f /t 0' -WindowStyle Hidden }"
             $acaoR    = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -Command `"$chk`""
             $gatilhoR = New-ScheduledTaskTrigger -Once -At (Get-Date).Date.AddMinutes(5) -RepetitionInterval (New-TimeSpan -Minutes 15)
-            $gatilhoB = New-ScheduledTaskTrigger -AtStartup
-            $confR    = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
-            Register-ScheduledTask -TaskName 'PainelLED - Reinicio apos atualizacao' -Action $acaoR -Trigger @($gatilhoR,$gatilhoB) -Settings $confR -Principal $princ -Force -ErrorAction Stop | Out-Null
-            Write-Log 'Reinicio automatico so quando a atualizacao pedir, na hora, sem aviso nenhum.' 'ok'
-        } else {
-            if (Get-ScheduledTask -TaskName 'PainelLED - Reinicio apos atualizacao' -ErrorAction SilentlyContinue) {
-                Unregister-ScheduledTask -TaskName 'PainelLED - Reinicio apos atualizacao' -Confirm:$false -ErrorAction SilentlyContinue
-            }
-            Set-Reg $au 'NoAutoRebootWithLoggedOnUsers' 1
-            Write-Log 'Reinicio automatico desligado: o notebook so reinicia quando o tecnico mandar.' 'warn'
+            $confR    = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+            Register-ScheduledTask -TaskName 'PainelLED - Reinicio apos atualizacao' -Action $acaoR -Trigger $gatilhoR -Settings $confR -Principal $princ -Force -ErrorAction Stop | Out-Null
+            Write-Log ("Reinicio automatico LIGADO, mas so de madrugada ({0} ate 06:00) e so se a atualizacao pedir." -f $HoraInicio) 'ok'
         }
     } catch {
         Write-Log "Falha nas atualizacoes do Windows: $($_.Exception.Message)" 'erro'
+    }
+}
+
+# ---------- 1c. SEM REINICIO AUTOMATICO (v3.6.0) ----------
+# Ate a v3.5.0 o kit deixava o Windows reiniciar a qualquer hora e ainda criava
+# um verificador que, a cada 15 minutos E a cada boot, reiniciava o notebook se
+# houvesse qualquer arquivo pendente (PendingFileRenameOperations). Isso acontece
+# o tempo todo com instaladores e drivers, entao o notebook reiniciava varias
+# vezes, de dia, no meio da configuracao do painel. Esta funcao desfaz tudo isso.
+# Tambem e chamada pelo botao "DESLIGAR REINICIO AUTOMATICO" (sem APLICAR tudo).
+function Invoke-DesligarReinicioAuto {
+    Write-Log 'REINICIO AUTOMATICO DESLIGADO' 'title'
+    try {
+        $au = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU'
+        $wu = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate'
+
+        # 1) Tarefas do proprio kit que reiniciavam o notebook
+        foreach ($t in @('PainelLED - Reinicio apos atualizacao','PainelLED - Reinicio noturno')) {
+            if (Get-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue) {
+                Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction SilentlyContinue
+                Write-Log "Tarefa `"$t`" removida." 'ok'
+            }
+        }
+
+        # 2) Windows Update nunca reinicia sozinho com alguem logado
+        Set-Reg $au 'NoAutoRebootWithLoggedOnUsers' 1
+        Set-Reg $au 'AlwaysAutoRebootAtScheduledTime' 0
+
+        # 3) Horario ativo das 06:00 as 00:00 (maximo de 18h): mesmo que o Windows
+        #    force um reinicio, ele nao acontece durante o dia de trabalho.
+        Set-Reg $wu 'SetActiveHours' 1
+        Set-Reg $wu 'ActiveHoursStart' 6
+        Set-Reg $wu 'ActiveHoursEnd' 0
+        Set-Reg 'HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings' 'ActiveHoursStart' 6
+        Set-Reg 'HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings' 'ActiveHoursEnd' 0
+
+        # 4) Sem prazo que obriga o reinicio
+        foreach ($n in @('SetComplianceDeadline','ConfigureDeadlineForQualityUpdates','ConfigureDeadlineForFeatureUpdates',
+                         'ConfigureDeadlineGracePeriod','ConfigureDeadlineNoAutoReboot')) {
+            Remove-Reg $wu $n
+        }
+        Set-Reg $wu 'SetAutoRestartDeadline' 0
+
+        # 5) Tarefa de atualizacao de versoes antigas: tira o "rodar assim que ligar",
+        #    que fazia a atualizacao pesada comecar de dia, logo depois do boot.
+        $tAtu = Get-ScheduledTask -TaskName 'PainelLED - Atualizacoes noturnas' -ErrorAction SilentlyContinue
+        if ($tAtu -and $tAtu.Settings.StartWhenAvailable) {
+            $tAtu.Settings.StartWhenAvailable = $false
+            $tAtu | Set-ScheduledTask -ErrorAction SilentlyContinue | Out-Null
+            Write-Log 'Atualizacao noturna nao roda mais de dia quando o notebook liga.' 'ok'
+        }
+
+        Write-Log 'O notebook so reinicia quando o tecnico mandar (botao REINICIAR PC ou menu Iniciar).' 'ok'
+    } catch {
+        Write-Log "Falha ao desligar o reinicio automatico: $($_.Exception.Message)" 'erro'
     }
 }
 
@@ -760,7 +805,7 @@ function Invoke-Extras {
 }
 
 # ---------- VERSAO / ATUALIZACAO ----------
-$script:Versao  = '3.5.0'
+$script:Versao  = '3.6.0'
 $script:SiteUrl = 'https://confignote-automatico.lovable.app'
 # Na thread paralela nao existe $PSCommandPath: a interface passa a pasta do
 # pendrive pela variavel global PastaPendrive.
@@ -829,10 +874,10 @@ function Invoke-PreCheck {
         $pend = Get-Item $script:Pasta
         Write-Log "Pendrive / pasta do script: $($pend.FullName)"
 
-        foreach ($a in (Find-Aplicativos)) {
-            if ($a.Caminho) { Write-Log "$($a.Nome) ja instalado." 'ok' }
-            else { Write-Log "$($a.Nome) NAO instalado - use o item de instalacao automatica." 'warn'; $problemas++ }
-        }
+        $inst = Join-Path $script:Pasta 'Instaladores'
+        $exes = @(Get-ChildItem $inst -Include *.exe,*.msi -File -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notmatch '(?i)\\Prontos\\' })
+        if ($exes.Count -gt 0) { Write-Log "$($exes.Count) instalador(es) na pasta Instaladores do pendrive." 'ok' }
+        else { Write-Log 'Nenhum instalador na pasta Instaladores do pendrive - a pasta da area de trabalho ficara vazia.' 'warn'; $problemas++ }
 
         $wp = Join-Path $script:Pasta 'Wallpaper.jpg'
         if (Test-Path $wp) { Write-Log 'Papel de parede da Global LED encontrado no pendrive.' 'ok' }
@@ -1692,8 +1737,13 @@ function Invoke-Validacao {
     Test-Item 'Suspender: nunca (AC e DC)'          { ((powercfg /query SCHEME_CURRENT SUB_SLEEP STANDBYIDLE) -join ' ') -notmatch '0x0000000[1-9]' }
     Test-Item 'Atualizacoes agendadas na madrugada' { (Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name ScheduledInstallTime -ErrorAction SilentlyContinue).ScheduledInstallTime -ge 0 }
     Test-Item 'Tarefa de atualizacao noturna criada' { [bool](Get-ScheduledTask -TaskName 'PainelLED - Atualizacoes noturnas' -ErrorAction SilentlyContinue) }
-    Test-Item 'Reinicio so quando a atualizacao pedir' { [bool](Get-ScheduledTask -TaskName 'PainelLED - Reinicio apos atualizacao' -ErrorAction SilentlyContinue) }
+    if ($Opcoes -and $Opcoes.ReinicioAuto) {
+        Test-Item 'Reinicio so de madrugada, quando a atualizacao pedir' { [bool](Get-ScheduledTask -TaskName 'PainelLED - Reinicio apos atualizacao' -ErrorAction SilentlyContinue) }
+    } else {
+        Test-Item 'Sem reinicio automatico apos atualizacao' { -not (Get-ScheduledTask -TaskName 'PainelLED - Reinicio apos atualizacao' -ErrorAction SilentlyContinue) }
+    }
     Test-Item 'Reinicio diario em horario fixo removido' { -not (Get-ScheduledTask -TaskName 'PainelLED - Reinicio noturno' -ErrorAction SilentlyContinue) }
+    Test-Item 'Windows nao reinicia com usuario logado' { (Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoRebootWithLoggedOnUsers -ErrorAction SilentlyContinue).NoAutoRebootWithLoggedOnUsers -eq 1 }
     Test-Item 'Controle de aplicativos (Smart App Control) desligado' { (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy' -Name VerifiedAndReputablePolicyState -ErrorAction SilentlyContinue).VerifiedAndReputablePolicyState -eq 0 }
     Test-Item 'SmartScreen de aplicativos desligado' { (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer' -Name SmartScreenEnabled -ErrorAction SilentlyContinue).SmartScreenEnabled -eq 'Off' }
     Test-Item 'Hibernacao desligada'                { -not (Test-Path 'C:\hiberfil.sys') }
@@ -1702,15 +1752,9 @@ function Invoke-Validacao {
     Test-Item 'OneDrive removido'                   { -not (Get-Process OneDrive -ErrorAction SilentlyContinue) }
     Test-Item 'Tema escuro ativo'                   { (Get-ItemProperty 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name AppsUseLightTheme -ErrorAction SilentlyContinue).AppsUseLightTheme -eq 0 }
     Test-Item 'Papel de parede da Global LED'       { (Get-ItemProperty 'HKCU:\Control Panel\Desktop' -Name Wallpaper -ErrorAction SilentlyContinue).Wallpaper -like '*GlobalLED*' }
-    foreach ($a in (Find-Aplicativos)) {
-        $nomeApp = $a.Nome; $caminho = $a.Caminho
-        Test-Item "$nomeApp instalado" { [bool]$caminho }
-        if ($caminho) {
-            Test-Item "$nomeApp liberado no Firewall" { [bool](netsh advfirewall firewall show rule name="$nomeApp (Painel LED)" | Select-String 'Sim|Yes|Allow') }
-            Test-Item "$nomeApp com atalho na area de trabalho" { Test-Path "$env:PUBLIC\Desktop\$nomeApp.lnk" }
-        }
+    if ($Opcoes -and $Opcoes.CopiarInst) {
+        Test-Item 'Pasta Instalar Programas LED na area de trabalho' { Test-Path (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Instalar Programas LED') }
     }
-    Test-Item 'AnyDesk na inicializacao' { Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\AnyDesk.lnk" }
     Test-Item 'Antivirus de terceiros removido' { -not (Get-ProgramasFabrica -Forcar | Where-Object { $_.Fabricante -eq 'Antivirus' }) }
     Test-Item 'Programas de fabrica removidos' { (@(Get-ProgramasFabrica -Forcar | Where-Object { $_.Fabricante -ne 'Antivirus' })).Count -eq 0 }
     Test-Item 'Windows Defender desligado' {
@@ -2632,9 +2676,11 @@ function Invoke-RemoverAntivirusComFallback {
                   <ComboBoxItem Content="22:00"/><ComboBoxItem Content="23:00"/>
                 </ComboBox>
               </StackPanel>
-              <CheckBox x:Name="cbReinicioAuto" IsChecked="True" Margin="22,8,0,0" Content="Reiniciar sozinho assim que a atualizacao terminar (sem aviso)"/>
+              <CheckBox x:Name="cbReinicioAuto" IsChecked="False" Margin="22,8,0,0" Content="Reiniciar sozinho apos a atualizacao (so de madrugada, ate 06:00)"/>
               <TextBlock x:Name="txtJanela" Text="" Foreground="#7C8695" TextWrapping="Wrap" FontSize="11" Margin="22,6,0,0"/>
-              <TextBlock Text="Busca e instala tudo o que o Windows Update encontrar no horario escolhido. O notebook so reinicia quando o Windows realmente pedir, na hora, sem mensagem e sem ninguem precisar clicar em nada." Foreground="#7C8695" TextWrapping="Wrap" FontSize="11" Margin="22,2,0,0"/>
+              <TextBlock Text="Busca e instala o que o Windows Update encontrar no horario escolhido. Desmarcado (padrao), o notebook NUNCA reinicia sozinho: nem depois de atualizacao, nem em horario fixo." Foreground="#7C8695" TextWrapping="Wrap" FontSize="11" Margin="22,2,0,0"/>
+              <Button x:Name="btnSemReinicio" Content="DESLIGAR REINICIO AUTOMATICO AGORA" Background="#3A2118" Foreground="#FFB08A" Margin="22,10,0,0" HorizontalAlignment="Left"/>
+              <TextBlock Text="Para notebook que ja foi configurado e esta reiniciando sozinho: desliga so o reinicio automatico, sem passar o resto do kit de novo." Foreground="#7C8695" TextWrapping="Wrap" FontSize="11" Margin="22,4,0,0"/>
             </StackPanel>
           </GroupBox>
 
@@ -2678,15 +2724,7 @@ function Invoke-RemoverAntivirusComFallback {
             </GroupBox.Header>
             <StackPanel>
               <CheckBox x:Name="cbCopiarInst" IsChecked="True" Content="Copiar os instaladores para a area de trabalho (instalar a mao depois)"/>
-              <TextBlock Text="A instalacao automatica foi retirada: ela travava e deixava os apps pela metade. O kit cria a pasta 'Instalar Programas LED' na area de trabalho com AnyDesk, LedVision e NovaLCT para voce instalar em 2 minutos no final." Foreground="#9AA6B2" TextWrapping="Wrap" FontSize="11" Margin="22,2,0,0"/>
-              <CheckBox x:Name="cbApps" IsChecked="True" Content="Localizar apps e configurar" Margin="0,10,0,0"/>
-              <CheckBox x:Name="cbAtalhos" IsChecked="True" Content="Criar atalhos na area de trabalho" Margin="22,6,0,0"/>
-              <CheckBox x:Name="cbStartup" IsChecked="True" Content="AnyDesk na inicializacao" Margin="22,6,0,0"/>
-              <CheckBox x:Name="cbFirewall" IsChecked="True" Content="Liberar no Firewall" Margin="22,6,0,0"/>
-              <Button x:Name="btnScan" Content="APENAS PROCURAR APPS" Background="#232A35" Foreground="#E7EAF0" Margin="22,10,0,0" HorizontalAlignment="Left"/>
-              <Button x:Name="btnPacote" Content="GERAR PACOTE PRONTO (copiar desta maquina)" Background="#232A35" Foreground="#FFB08A" Margin="22,6,0,0" HorizontalAlignment="Left"/>
-              <TextBlock Text="Instale os apps UMA vez neste notebook modelo e gere o pacote: nos proximos, a instalacao vira uma copia de segundos, sem janelas." Foreground="#9AA6B2" TextWrapping="Wrap" FontSize="11" Margin="22,2,0,0"/>
-
+              <TextBlock Text="O kit cria a pasta 'Instalar Programas LED' na area de trabalho com AnyDesk, LedVision e NovaLCT para voce instalar em 2 minutos no final." Foreground="#9AA6B2" TextWrapping="Wrap" FontSize="11" Margin="22,2,0,0"/>
             </StackPanel>
           </GroupBox>
 
@@ -2801,11 +2839,11 @@ $win = [Windows.Markup.XamlReader]::Load($reader)
 
 $ctl = @{}
 foreach ($n in @('cbPreCheck','cbBackup','cbEnergia','cbUpdate','cbNotif','cbTaskbar','cbAparencia','cbOneDrive',
-                 'cbCopiarInst','cbApps','cbAtalhos','cbStartup','cbFirewall','cbExtras','cbValidar',
+                 'cbCopiarInst','cbExtras','cbValidar','btnSemReinicio',
                  'cbBloat','cbMcAfee','cbDefender','btnVerLista','btnDesarmar','btnModoSeguro','btnTamper','stLimpeza',
                  'cbHoraInicio','cbReinicioAuto','txtJanela',
                  'rtLog','txtVersao','txtStatus','btnVerificar','btnBackup','btnAplicar','btnValidar','btnTodos',
-                 'btnSalvar','btnRestaurar','btnAtualizar','btnTutorial','btnReiniciar','btnScan','btnPacote',
+                 'btnSalvar','btnRestaurar','btnAtualizar','btnTutorial','btnReiniciar',
                  'pbProgresso','txtEtapa','txtTempo',
                  'cbAutoScroll','cbSoProblemas','cbHora','btnCopiarLog','btnLimparLog',
                  'ledConsole','txtConsoleEstado','txtContOk','txtContWarn','txtContErro','txtUltimaLinha',
@@ -2932,7 +2970,7 @@ function Update-TextoJanela {
     try {
         $ini = Get-HoraSel 'cbHoraInicio' '00:30'
         if ([bool]$ctl['cbReinicioAuto'].IsChecked) {
-            $ctl['txtJanela'].Text = ("Atualizacoes as {0}. Reinicio somente quando o Windows pedir, na hora, sem aviso." -f $ini)
+            $ctl['txtJanela'].Text = ("Atualizacoes as {0}. Reinicia sozinho so entre {0} e 06:00, e so se a atualizacao pedir." -f $ini)
         } else {
             $ctl['txtJanela'].Text = ("Atualizacoes as {0}. O notebook nunca reinicia sozinho." -f $ini)
         }
@@ -2956,8 +2994,7 @@ $ctl['btnTodos'].Add_Click({
     $conta = 0
     foreach ($n in @('cbPreCheck','cbBackup','cbBloat','cbMcAfee','cbDefender',
                      'cbEnergia','cbUpdate','cbNotif','cbTaskbar','cbAparencia','cbOneDrive',
-                     'cbCopiarInst','cbApps','cbAtalhos','cbStartup','cbFirewall',
-                     'cbExtras','cbValidar','cbReinicioAuto')) {
+                     'cbCopiarInst','cbExtras','cbValidar')) {
         try {
             $c = $ctl[$n]
             if ($c) { $c.IsChecked = $alvo; $conta++ }
@@ -3109,10 +3146,6 @@ function Get-Opcoes {
         Notif     = [bool]$ctl['cbNotif'].IsChecked
         Update    = [bool]$ctl['cbUpdate'].IsChecked
         OneDrive  = [bool]$ctl['cbOneDrive'].IsChecked
-        Apps      = [bool]$ctl['cbApps'].IsChecked
-        Atalhos   = [bool]$ctl['cbAtalhos'].IsChecked
-        Startup   = [bool]$ctl['cbStartup'].IsChecked
-        Firewall  = [bool]$ctl['cbFirewall'].IsChecked
         Extras    = [bool]$ctl['cbExtras'].IsChecked
         Aparencia = [bool]$ctl['cbAparencia'].IsChecked
         Taskbar   = [bool]$ctl['cbTaskbar'].IsChecked
@@ -3370,27 +3403,10 @@ $ctl['btnAtualizar'].Add_Click({
 
 $ctl['btnTutorial'].Add_Click({ Start-Process $script:SiteUrl })
 
-$ctl['btnPacote'].Add_Click({
-    Start-Tarefa -Nome 'Gerando pacote pronto dos aplicativos' -Final 'Pacote pronto gerado.' -Corpo {
-        Set-Etapa 'Copiando os programas instalados para o pendrive' 0 'Apps'
-        Write-Log 'GERAR PACOTE PRONTO' 'title'
-        Write-Log 'Prepare o notebook MODELO uma unica vez: com os tres apps instalados, este pacote serve para todos os outros.'
-        Write-Log 'Copiando a instalacao atual do LedVision, NovaLCT e AnyDesk para Instaladores\Prontos.'
-        $bons = 0
-        foreach ($n in @('LedVision','NovaLCT','AnyDesk')) { if (Export-PacotePronto $n) { $bons++ } }
-        if ($bons -eq 3) { Write-Log 'Pacote pronto completo: nos proximos notebooks a instalacao vira uma copia de segundos, sem janelas.' 'ok' }
-        else { Write-Log "$bons de 3 aplicativos empacotados. Instale a mao o que faltou neste notebook modelo e gere o pacote de novo." 'erro' }
-    }
-})
-
-$ctl['btnScan'].Add_Click({
-    Start-Tarefa -Nome 'Procurando os aplicativos' -Final 'Busca de aplicativos concluida.' -Corpo {
-        Set-Etapa 'Procurando AnyDesk, LedVision e NovaLCT' 0 'Apps'
-        Write-Log 'BUSCA DE APLICATIVOS' 'title'
-        foreach ($a in (Find-Aplicativos -Forcar)) {
-            if ($a.Caminho) { Write-Log "$($a.Nome): $($a.Caminho)" 'ok' }
-            else { Write-Log "$($a.Nome): nao encontrado neste computador." 'warn' }
-        }
+$ctl['btnSemReinicio'].Add_Click({
+    Start-Tarefa -Nome 'Desligando o reinicio automatico' -Final 'Reinicio automatico desligado.' -Corpo {
+        Set-Etapa 'Desligando o reinicio automatico' 0 'Update'
+        Invoke-DesligarReinicioAuto
     }
 })
 
@@ -3405,7 +3421,7 @@ $ctl['btnAplicar'].Add_Click({
     $total = 2   # desarmar antivirus + perfis de usuario
     $total++   # desligar o controle de aplicativos do Windows 11
     foreach ($v in @($o.PreCheck,$o.Backup,($o.Bloat -or $o.McAfee),$o.Defender,$o.CopiarInst,$o.Energia,$o.Notif,$o.Update,
-                     $o.OneDrive,$o.Apps,$o.Extras,$o.Aparencia,$o.Taskbar,$o.Validar)) {
+                     $o.OneDrive,$o.Extras,$o.Aparencia,$o.Taskbar,$o.Validar)) {
         if ($v) { $total++ }
     }
 
@@ -3440,10 +3456,6 @@ $ctl['btnAplicar'].Add_Click({
             Invoke-LimpezaFabrica -Selecao @($Opcoes.SelBloat) -IncluirMcAfee ([bool]$Opcoes.McAfee)
         }
         if ($Opcoes.CopiarInst) { $i++; Set-Etapa 'Copiando os instaladores para a area de trabalho' $i 'Apps'; Copy-InstaladoresParaDesktop }
-        if ($Opcoes.Apps)     {
-            $i++; Set-Etapa 'Aplicativos do painel' $i 'Apps'
-            Invoke-Aplicativos -CriarAtalhos ([bool]$Opcoes.Atalhos) -Inicializar ([bool]$Opcoes.Startup) -Firewall ([bool]$Opcoes.Firewall)
-        }
         if ($Opcoes.Taskbar)   { $i++; Set-Etapa 'Barra de tarefas' $i 'Interface'; Invoke-Interface }   # por ultimo: reinicia o Explorer
 
         Close-HivesUsuario

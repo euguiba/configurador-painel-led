@@ -21,7 +21,6 @@ import {
   Monitor,
   MonitorCog,
   MousePointerClick,
-  Package,
   Palette,
   RefreshCw,
   ShieldAlert,
@@ -73,9 +72,10 @@ const modulos = [
     titulo: "Atualizações na madrugada",
     itens: [
       "Windows Update baixa e instala tudo automaticamente a partir das 00:30",
-      "Reinício só quando a atualização realmente pedir — na hora, sem mensagem e sem ninguém clicar",
-      "Fim do reinício diário em horário fixo: a tarefa antiga é apagada do notebook",
-      "Tarefa agendada acorda o notebook para concluir as atualizações",
+      "Por padrão o notebook NUNCA reinicia sozinho — nem depois de atualização, nem em horário fixo",
+      "Horário ativo das 06:00 às 00:00: nem atualização forçada reinicia durante o dia",
+      "Reinício automático opcional: só de madrugada (até 06:00) e só quando o Windows Update pedir",
+      "Botão “DESLIGAR REINÍCIO AUTOMÁTICO AGORA” para notebooks já configurados",
 
     ],
   },
@@ -119,20 +119,10 @@ const modulos = [
   },
 
   {
-    icon: Package,
-    titulo: "Aplicativos",
-    itens: [
-      "Localiza AnyDesk, LedVision e NovaLCT mesmo com número de versão no nome",
-      "Cria atalhos na área de trabalho pública",
-      "AnyDesk na inicialização para acesso remoto",
-      "Libera os três no Firewall do Windows",
-    ],
-  },
-  {
     icon: ShieldCheck,
     titulo: "Verificação e backup",
     itens: [
-      "Checa disco, memória, bateria, internet e apps antes de aplicar",
+      "Checa disco, memória, bateria, internet e instaladores antes de aplicar",
       "Cria ponto de restauração do Windows",
       "Salva backup das configurações na pasta Backups do pendrive",
       "Botão RESTAURAR desfaz tudo em campo",
