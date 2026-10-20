@@ -1,0 +1,8 @@
+[AutoRun]
+open=Iniciar.bat
+icon=Iniciar.bat,0
+label=GLOBAL LED - Configurador
+action=Abrir o Configurador de Notebook (Global LED)
+shell\configurador=Abrir o &Configurador de Notebook
+shell\configurador\command=Iniciar.bat
+shell\configurador\default=1

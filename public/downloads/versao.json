@@ -1,0 +1,414 @@
+{
+  "versao": "3.5.0",
+  "data": "2026-09-23",
+  "arquivo": "/downloads/ConfiguradorPainelLED.ps1",
+  "historico": [
+    {
+      "numero": "3.5.0",
+      "data": "2026-09-23",
+      "resumo": "Fim do travamento depois de alguns dias: Controle de Aplicativos do Windows 11 desligado e instaladores prontos na area de trabalho.",
+      "novo": [
+        "Smart App Control (Controle de Aplicativos Inteligente) desligado de forma definitiva: o Windows nao bloqueia mais a abertura e a instalacao dos programas dias depois",
+        "SmartScreen de aplicativos, arquivos e da loja desligado, com instalacao liberada para programas de qualquer origem",
+        "Fim do aviso de 'editor desconhecido' e da marca de origem que travava o AppData do AnyDesk",
+        "Instalacao automatica dos aplicativos retirada: ela travava e deixava os apps pela metade",
+        "Nova opcao marcada por padrao: os instaladores do AnyDesk, LedVision e NovaLCT sao copiados para a pasta 'Instalar Programas LED' na area de trabalho",
+        "Bilhete 'LEIA ANTES.txt' na pasta com a ordem de instalacao para o tecnico",
+        "Validacao final confere o Controle de Aplicativos e o SmartScreen desligados"
+      ]
+    },
+    {
+      "numero": "3.4.0",
+      "data": "2026-09-15",
+      "resumo": "Reinicio automatico so quando a atualizacao pedir, na hora e sem nenhuma mensagem na tela.",
+      "novo": [
+        "Fim do reinicio diario em horario fixo: a tarefa 'PainelLED - Reinicio noturno' e apagada do notebook",
+        "Nova tarefa confere a cada 15 minutos se o Windows esta pedindo reinicio e so nesse caso reinicia",
+        "Reinicio imediato e silencioso: sem contagem na tela, sem aviso e sem ninguem precisar clicar em nada",
+        "Todos os avisos de reinicio do Windows Update desligados (horario ativo nao segura mais o reinicio)",
+        "Nova opcao na tela: 'Reiniciar sozinho assim que a atualizacao terminar (sem aviso)', marcada por padrao",
+        "Validacao confere a nova tarefa e a remocao da tarefa antiga de horario fixo"
+      ]
+    },
+    {
+      "numero": "3.3.0",
+      "data": "2026-09-10",
+      "resumo": "Instalacao sem janelas: pacote pronto primeiro, internet como reforco e instalador da pasta so como ultimo recurso.",
+      "novo": [
+        "Nova ordem por aplicativo: 1) copia do pacote pronto, 2) internet pelo winget em silencio, 3) instalador da pasta",
+        "Nova opcao 'Tentar instalador com janela (ultimo recurso)', desmarcada por padrao: sem marcar, nenhum instalador abre janela",
+        "Instalacao pela internet com winget (AnyDesk, LedVision e NovaLCT), confirmada pelo registro do Windows",
+        "Pacote pronto agora registra o app em Programas Instalados e cria o atalho, para ser reconhecido na hora",
+        "GERAR PACOTE PRONTO confere a copia (arquivos, tamanho e executavel), leva as configuracoes do usuario e avisa se algum app faltar no notebook modelo",
+        "Resumo final diz por qual caminho cada aplicativo entrou e o que fazer quando faltar"
+      ]
+    },
+    {
+      "numero": "3.2.3",
+      "data": "2026-08-31",
+      "resumo": "Limpeza de fabrica e instalacao dos aplicativos passam para o FINAL do processo: nada mais some do notebook.",
+      "novo": [
+        "Nova ordem: ajustes de energia, notificacoes, update, OneDrive, extras e tema primeiro",
+        "Depois de tudo configurado: limpeza de fabrica, instalacao dos aplicativos, atalhos e por ultimo a barra de tarefas",
+        "Fim dos aplicativos sumindo: a limpeza nunca roda depois da instalacao",
+        "Atalhos e permissoes dos programas criados logo apos a instalacao, com os programas ja no disco"
+      ]
+    },
+    {
+      "numero": "3.2.2",
+      "data": "2026-08-14",
+      "resumo": "Pular o OOBE com arquivo de resposta do Windows e aplicativos reconhecidos na hora em que terminam de instalar.",
+      "novo": [
+        "Opcao 2 do INICIAR.cmd grava um arquivo de resposta (unattend.xml) em C:\\Windows\\Panther: o Windows cria a conta Global e pula todas as telas sozinho",
+        "Logon automatico e fuso horario ja vem no arquivo de resposta, alem das chaves de registro",
+        "Reconhecimento rapido dos aplicativos pelo registro do Windows e pelas pastas conhecidas (sem varrer o disco a cada conferencia)",
+        "Durante a instalacao o kit confere a cada 2 segundos: assim que o app aparece instalado, ele fecha o instalador e para de tentar",
+        "Fim do app abrindo varias vezes por 'nao reconhecido como instalado'",
+        "Conferencia final com varredura completa do disco antes do resumo"
+      ]
+    },
+    {
+      "numero": "3.2.1",
+      "data": "2026-08-13",
+      "resumo": "Pular a configuracao inicial agora cai mesmo na area de trabalho: o Windows e marcado como configurado e reinicia sozinho.",
+      "novo": [
+        "OOBE marcado como concluido no registro (SetupType, OOBEInProgress, CmdLine e ChildCompletion)",
+        "Reinicio automatico ao final, em vez de encerrar o assistente (que voltava as telas iniciais)",
+        "Logon automatico da conta Global aplicado antes do reinicio: o notebook abre direto no desktop"
+      ]
+    },
+    {
+      "numero": "3.2.0",
+      "data": "2026-08-13",
+      "resumo": "AnyDesk instalado de verdade (com atalho) e NovaLCT sem looping, alem do modo pacote pronto.",
+      "novo": [
+        "AnyDesk: usa o .msi quando houver, confere a pasta instalada e nao aceita mais 'apenas abriu' como instalado",
+        "Se o AnyDesk abrir a janela do programa em vez de instalar, o kit fecha e tenta o modo assistido",
+        "Atalho do AnyDesk na area de trabalho criado pelo proprio configurador quando o instalador nao cria",
+        "NovaLCT com roteiro dedicado: uma acao por tela, trava anti-looping e abandono com motivo no console",
+        "NovaLCT tenta primeiro extrair o MSI interno e instalar em silencio",
+        "Instaladores silenciosos em paralelo; instaladores com janela um de cada vez",
+        "Tempo limite do modo assistido reduzido de 15 para 8 minutos, com conferencia no disco a cada ciclo",
+        "Novo botao GERAR PACOTE PRONTO: copia a instalacao de um notebook modelo e instala nos demais em segundos, sem janelas"
+      ]
+    },
+    {
+      "numero": "3.1.1",
+      "data": "2026-08-13",
+      "resumo": "NovaLCT passa a usar somente o modo de instalacao que funciona, sem repeticoes nem espera desnecessaria.",
+      "novo": [
+        "NovaLCT abre diretamente no modo normal visivel com o assistente automatico",
+        "Removidas as tres tentativas silenciosas incompatíveis que causavam demora e looping",
+        "Contratos, permissoes, plugins e conclusao continuam sendo tratados pelo assistente",
+        "Depois do instalador fechar, o script aguarda e confere no disco se o NovaLCT foi instalado"
+      ]
+    },
+    {
+      "numero": "3.1.0",
+      "data": "2026-08-13",
+      "resumo": "Pular a configuracao inicial do Windows agora vai direto para a area de trabalho, com a conta local Global pronta.",
+      "novo": [
+        "Opcao 2 do INICIAR.cmd cria sozinha a conta local Global (administrador, sem senha)",
+        "Logon automatico ligado: o notebook entra na area de trabalho sem tela de senha",
+        "Telas de privacidade, personalizacao de uso, Copilot, dicas e 'vamos terminar de configurar' desativadas",
+        "Assistente do OOBE encerrado automaticamente ao final",
+        "Se o Windows bloquear a criacao da conta, volta ao modo manual com ms-cxh:localonly"
+      ]
+    },
+    {
+      "numero": "3.0.1",
+      "data": "2026-08-13",
+      "resumo": "Correcao da selecao de programas de fabrica: o que esta marcado e realmente desinstalado.",
+      "itens": [
+        "Selecao do tecnico guardada em escopo global (antes se perdia dentro da janela de selecao)",
+        "Comparacao de nomes sem diferenciar maiusculas/espacos",
+        "Lista vazia/nula nao bloqueia mais a remocao"
+      ]
+    },
+    {
+      "numero": "3.0.0",
+      "data": "2026-08-13",
+      "resumo": "Instalacao em paralelo que conclui sozinha e desinstalacao de fabrica que realmente remove.",
+      "novo": [
+        "Instalacao em paralelo: AnyDesk, LedVision e NovaLCT ao mesmo tempo",
+        "Assistente le o estado real das caixas e forca aceito/concordo, desmarca executar-agora e reiniciar-agora",
+        "Prioridade de botoes: Instalar > Avancar > Aceito > Sim/OK > Concluir; desabilitados sao ignorados",
+        "Tela final detectada e fechada automaticamente",
+        "Anti-loop por janela para nao ficar preso na mesma tela",
+        "Desinstalacao por tipo (MSI, Inno, NSIS, InstallShield) com parametro silencioso correto",
+        "Verificacao pos-remocao no registro/Appx; sem 'removido' falso",
+        "Fallback assistido com janela visivel e assistente ligado; ultima tentativa via winget",
+        "Lista final 'AINDA INSTALADOS' com o que restou"
+      ]
+    },
+    {
+      "numero": "2.9.0",
+      "data": "2026-08-11",
+      "resumo": "Pendrive organizado com um unico INICIAR.cmd, instalacao de aplicativos realmente automatica e Defender desligado de verdade.",
+      "novo": [
+        "Um unico arquivo de inicializacao: INICIAR.cmd (configurar o notebook ou pular o OOBE no mesmo menu)",
+        "Iniciar.bat, INICIAR AQUI.cmd e PULAR OOBE.cmd removidos do kit",
+        "Arquivos internos movidos para a pasta _sistema (autorun.inf, autounattend.xml e VTOYEFI)",
+        "Assistente de instalacao agora roda no mesmo processo (STA) e clica de fato em Sim/Aceito/Avancar/Instalar, marcando as caixas de contrato",
+        "Aceite automatico de drivers nao assinados e das janelas de plugin do NovaLCT e do LedVision",
+        "Resumo final da instalacao app por app com o motivo de cada falha",
+        "Defender: servicos WinDefend/WdNisSvc/Sense e drivers desabilitados, tarefas agendadas desativadas e icone da Central de Seguranca removido",
+        "Novo botao ABRIR PROTECAO CONTRA ADULTERACAO quando o Tamper Protection impede o desligamento imediato",
+        "Validacao final confere o servico WinDefend parado e desabilitado",
+        "Botao MARCAR TUDO corrigido e com alternancia DESMARCAR TUDO"
+      ]
+    },
+    {
+      "numero": "2.8.2",
+      "data": "2026-08-11",
+      "resumo": "Pendrive corrigido: inicializacao visivel e procedimento OOBE compativel com as protecoes do Windows 11.",
+      "novo": [
+        "Novo INICIAR AQUI.cmd visivel na raiz para abrir o configurador com permissao de administrador",
+        "Novo PULAR OOBE.cmd para liberar a configuracao com conta local pelo Shift+F10",
+        "Instrucoes corrigidas: Windows 11 nao executa AutoRun de pendrive nem rele autounattend.xml ao conecta-lo durante o OOBE",
+        "Kit e tutorial agora mostram o procedimento manual confiavel"
+      ]
+    },
+    {
+      "numero": "2.8.1",
+      "data": "2026-08-11",
+      "resumo": "Autorun otimizado para Ventoy: partição CD (VTOYEFI) abre o configurador da partição grande com um clique.",
+      "novo": [
+        "Pasta VTOYEFI com autorun.inf otimizado para pendrives preparados com Ventoy: abre o configurador da particao grande ao clicar na notificacao do Windows",
+        "Lancador AbrirConfigurador.bat localiza automaticamente a unidade do Ventoy que contem o ConfiguradorPainelLED.ps1",
+        "Icone proprio do configurador (Configurador.ico) para a particao CD do Ventoy",
+        "Opcao no menu de contexto do AutoPlay para abrir apenas o tutorial no navegador"
+      ]
+    },
+    {
+      "numero": "2.8.0",
+      "data": "2026-08-10",
+      "resumo": "Instalação do NovaLCT e do LedVision corrigida e execução muito mais rápida.",
+      "novo": [
+        "NovaLCT e LedVision: o instalador tenta os modos silencios corretos e, se nenhum funcionar, abre na tela com o assistente aceitando os plugins",
+        "Confirmacao real de instalacao: o script confere no disco se o programa ficou instalado depois de cada tentativa",
+        "Instaladores ja instalados sao pulados e arquivos que nao sao do AnyDesk/LedVision/NovaLCT (ex.: MCPR.exe) nao sao mais executados",
+        "Busca de aplicativos muito mais rapida: so entra em pastas com nome parecido, em vez de varrer o disco C: inteiro",
+        "Instalador travado e encerrado em 7 minutos e desinstalacao de bloatware em 2 minutos, evitando execucoes de 14 minutos"
+      ]
+    },
+    {
+      "numero": "2.7.2",
+      "data": "2026-08-10",
+      "resumo": "Desligamento do Windows Defender reforcado: mais politicas de registro, marca de idempotencia e validacao ampliada.",
+      "novo": [
+        "Desligamento do Windows Defender reforcado com todas as politicas de registro conhecidas",
+        "Novas chaves: AllowFastServiceStartup, DisableAntiVirus, DisableRoutinelyTakingAction, DisableSpecialRunningModes, ServiceKeepAlive",
+        "Signature Updates: ForceUpdateFromMU e Spynet: DisableBlockAtFirstSeen",
+        "Marca de idempotencia evita regravar as politicas quando o Defender ja foi desligado por este configurador",
+        "Validacao final tambem confere DisableAntiVirus e a protecao em tempo real"
+      ]
+    },
+    {
+      "numero": "2.7.1",
+      "data": "2026-08-10",
+      "resumo": "Correcao do botao bloqueado pela McAfee: abertura direta do removedor oficial, sem acionar a autoprotecao antes.",
+      "novo": [
+        "Botao renomeado para ABRIR REMOVEDOR OFICIAL e ligado diretamente ao MCPR.exe",
+        "Nenhum processo, servico ou driver da McAfee e parado antes da abertura do removedor",
+        "Aviso claro quando o MCPR.exe nao esta na pasta Instaladores",
+        "Orientacao para executar o MCPR manualmente como administrador caso a abertura seja bloqueada"
+      ]
+    },
+    {
+      "numero": "2.7.0",
+      "data": "2026-08-06",
+      "resumo": "Remocao de antivirus pelo Modo de Seguranca: quando a autoprotecao bloqueia tudo, o notebook reinicia sozinho, limpa e volta ao normal.",
+      "novo": [
+        "Nova rotina: reinicia o notebook em Modo de Seguranca e desinstala o antivirus la, onde a autoprotecao nao sobe",
+        "Botao REMOVER PELO MODO DE SEGURANCA: agenda tudo e reinicia na hora ou depois, como o tecnico preferir",
+        "Depois de limpar, o Windows volta sozinho ao modo normal e reinicia — sem comandos manuais",
+        "O botao EXCLUIR ANTIVIRUS AGORA tenta no Windows normal e, se a autoprotecao vencer, agenda o Modo de Seguranca automaticamente",
+        "Relatorio da limpeza salvo em C:\\PainelLED\\ModoSeguro\\remocao-modo-seguro.log",
+        "MCPR.exe do pendrive e copiado e executado dentro do Modo de Seguranca quando estiver disponivel"
+      ]
+    },
+    {
+      "numero": "2.6.1",
+      "data": "2026-08-06",
+      "resumo": "Correcao do botao de antivirus: agora ele desinstala os produtos encontrados e confere o resultado.",
+      "novo": [
+        "O botao EXCLUIR ANTIVIRUS AGORA executa a desinstalacao completa",
+        "Deteccao ampliada para McAfee, WebAdvisor, LiveSafe, Norton, Avast, AVG e Bitdefender",
+        "MCPR aberto visivelmente, pois o removedor oficial exige interacao do tecnico",
+        "Validacao final lista no console qualquer antivirus que ainda permaneca instalado"
+      ]
+    },
+    {
+      "numero": "2.6.0",
+      "data": "2026-08-06",
+      "resumo": "A McAfee e desarmada antes de qualquer configuracao: fim dos bloqueios no meio do processo.",
+      "novo": [
+        "Antivirus desarmado logo no comeco: a McAfee nao bloqueia mais as acoes do configurador",
+        "Processos, servicos e drivers de protecao em tempo real da McAfee sao parados e desativados antes de tudo",
+        "Arquivos do pendrive desbloqueados automaticamente (marca de origem do Windows removida)",
+        "Pendrive e PowerShell adicionados as exclusoes de verificacao",
+        "Novo botao 0. DESARMAR ANTIVIRUS AGORA para usar antes de aplicar, quando o notebook estiver travando",
+        "Se a protecao contra adulteracao impedir, o console avisa para reiniciar e rodar de novo"
+      ]
+    },
+    {
+      "numero": "2.5.0",
+      "data": "2026-08-06",
+      "resumo": "Limpeza de fabrica: remove bloatware da Lenovo e Samsung, desinstala o McAfee e permite desligar o Windows Defender.",
+      "novo": [
+        "Limpeza de fabrica: remove os programas inuteis que vem nos notebooks Lenovo e Samsung",
+        "McAfee e antivirus de teste desinstalados, com servicos e tarefas agendadas desativados",
+        "Opcao de desligar o Windows Defender (o notebook fica sem antivirus ativo — confirmacao obrigatoria)",
+        "Botao VER O QUE SERA REMOVIDO: lista os programas encontrados e deixa desmarcar o que deve ficar",
+        "Drivers, audio, video, teclas Fn e utilitarios de energia do fabricante nunca sao removidos",
+        "Se o MCPR.exe estiver na pasta Instaladores, o removedor oficial da McAfee e executado sozinho",
+        "Validacao final confere se o McAfee saiu, se os programas de fabrica sumiram e se o Defender ficou desligado"
+      ]
+    },
+    {
+      "numero": "2.4.0",
+      "data": "2026-08-06",
+      "resumo": "Console em tempo real: log colorido com horario, contadores, filtro de problemas e botoes de copiar/limpar.",
+      "novo": [
+        "Painel de console em tempo real: cada linha aparece na hora, colorida por tipo (OK, aviso, erro)",
+        "Cada mensagem vem com o horario exato ao lado — da para acompanhar quanto tempo levou cada etapa",
+        "Contadores no topo do console: quantos itens OK, quantos avisos e quantos erros",
+        "Filtro Somente avisos e erros para achar o problema sem rolar o log inteiro",
+        "Botoes COPIAR e LIMPAR e opcao de parar a rolagem automatica para ler com calma",
+        "Rodape mostra sempre a ultima linha executada, mesmo com o console rolado para cima",
+        "Indicador de estado do console: aguardando, executando, concluido ou concluido com erros"
+      ]
+    },
+    {
+      "numero": "2.3.0",
+      "data": "2026-08-06",
+      "resumo": "Interface que nao trava: o trabalho roda em segundo plano, com barra de progresso, cronometro e status por bloco.",
+      "novo": [
+        "A janela nunca mais fica sem resposta: todo o trabalho pesado roda em segundo plano",
+        "Barra de progresso com etapa atual (Etapa 3 de 9 — Energia e desempenho) e cronometro",
+        "Cada bloco da lista mostra em andamento... e concluido enquanto o script trabalha",
+        "Botoes e caixas ficam bloqueados durante a execucao — cliques repetidos nao travam mais o programa",
+        "Log escrito em lotes e busca de planos de energia em cache: processo mais rapido",
+        "A verificacao de versao na abertura nao segura mais a janela",
+        "Aviso ao tentar fechar o programa no meio de uma aplicacao"
+      ]
+    },
+    {
+      "numero": "2.2.4",
+      "data": "2026-08-06",
+      "resumo": "A criacao da conta local Global foi removida do configurador: o notebook continua na conta que ja existe no Windows.",
+      "novo": [
+        "Removida a opcao de criar a conta local Global sem senha e o logon automatico",
+        "As configuracoes passam a ser gravadas no usuario atual e no perfil padrao do Windows (usuarios novos ja nascem configurados)",
+        "A validacao nao confere mais a conta Global",
+        "Notebooks ja configurados mantem a conta Global criada por versoes anteriores — a remocao, se desejada, e manual",
+        "Permissoes nas pastas dos programas continuam sendo liberadas (correcao do atalho do NovaLCT mantida)"
+      ]
+    },
+    {
+      "numero": "2.2.3",
+      "data": "2026-08-06",
+      "resumo": "Energia gravada como politica do Windows (nao se perde no reinicio) e fim dos atalhos quebrados do NovaLCT e LedVision.",
+      "novo": [
+        "Tampa, botoes, video e suspensao agora tambem sao gravados como politica do Windows: sobrevivem ao reinicio, a troca de plano e ao gerenciador de energia do fabricante",
+        "Nova tarefa PainelLED - Reaplicar energia: a cada inicializacao e logon o notebook volta sozinho para nada a fazer / nunca",
+        "Atalhos so sao criados quando o programa existe mesmo no disco — nada de o item com referencia nesse atalho nao pode ser acessado",
+        "A busca ignora instaladores, arquivos no pendrive e programas dentro do perfil de outro usuario",
+        "Depois de instalar, a lista de aplicativos e refeita e a pasta do programa recebe permissao de leitura/execucao para todos os usuarios",
+        "Atalho antigo quebrado e removido da area de trabalho automaticamente"
+      ]
+    },
+    {
+      "numero": "2.2.2",
+      "data": "2026-08-06",
+      "resumo": "Correcao da ordem do plano de energia: nada a fazer e nunca nao se perdem mais ao ativar o Desempenho Maximo.",
+      "novo": [
+        "O plano de Desempenho Maximo passa a ser ativado ANTES dos ajustes — antes ele era ativado no meio e o Windows recarregava os valores de fabrica do plano",
+        "Depois de gravar em todos os planos, os itens sao reforcados e recarregados no plano ativo",
+        "Itens de energia escondidos pelo fabricante (tampa e botoes) sao liberados antes da gravacao",
+        "Conferencia automatica no fim: se tampa, botoes, video ou suspensao nao ficaram corretos, o script grava de novo",
+        "O plano Desempenho Maximo nao e mais duplicado a cada execucao no mesmo notebook"
+      ]
+    },
+    {
+      "numero": "2.2.1",
+      "data": "2026-08-06",
+      "resumo": "Correcao do travamento ao abrir o programa e interface que nao fica mais Nao respondendo durante a aplicacao.",
+      "novo": [
+        "A consulta de nova versao agora acontece so depois que a janela aparece — antes ela travava a abertura esperando a internet",
+        "O aviso de atualizacao nao abre mais uma caixa de dialogo sem janela por tras (causa do nao responde)",
+        "A tela continua respondendo enquanto o script trabalha: a interface e atualizada a cada linha do log",
+        "Horarios do Windows Update lidos de forma segura em qualquer configuracao regional do Windows",
+        "Horarios escolhidos na interface aplicados diretamente nas tarefas agendadas"
+      ]
+    },
+    {
+      "numero": "2.2.0",
+      "data": "2026-08-04",
+      "resumo": "Energia reforcada em todos os planos, atualizacoes do Windows programadas para a madrugada e processo de aplicacao bem mais rapido.",
+      "novo": [
+        "Fechar a tampa, botao de energia e botao de suspender: NADA A FAZER em todos os planos de energia, na tomada e na bateria",
+        "Desligar video e suspender: NUNCA em todos os planos de energia, na tomada e na bateria",
+        "Novo modulo: atualizacoes do Windows baixadas e instaladas automaticamente a partir das 00:30",
+        "Reinicio automatico programado para as 05:00 — janela de reinicio limitada a 00:00–06:00 (horario ativo 06:00 as 00:00)",
+        "Tarefa agendada acorda o notebook na madrugada para concluir as atualizacoes",
+        "Busca de aplicativos muito mais rapida: usa o registro do Windows antes de varrer pastas, com resultado em cache",
+        "Esperas fixas reduzidas ao longo do processo (Explorer, OneDrive e validacao final)",
+        "Novas conferencias na validacao: tampa sem acao, suspensao nunca e agendamento das atualizacoes"
+      ]
+    },
+    {
+      "numero": "2.1.0",
+      "data": "2026-08-04",
+      "resumo": "Correcao importante: as configuracoes nao se perdem mais ao entrar na conta local Global. Tudo e gravado no perfil da conta Global e no perfil padrao do Windows.",
+      "novo": [
+        "Todas as configuracoes de usuario (tema, papel de parede, notificacoes, barra de tarefas, protetor de tela) sao gravadas tambem dentro do perfil da conta Global",
+        "Perfil padrao do Windows tambem recebe os ajustes: qualquer usuario novo ja nasce configurado",
+        "O perfil da conta Global e criado na hora, sem precisar fazer logon com ela antes",
+        "A conta Global passou a ser criada no comeco da aplicacao, antes das demais configuracoes",
+        "Conferencia final no log confirmando que as configuracoes chegaram no perfil da conta Global"
+      ]
+    },
+    {
+      "numero": "2.0.0",
+      "data": "2026-08-03",
+      "resumo": "Versao focada em seguranca e conferencia: agora o script verifica o notebook antes, faz backup, instala os aplicativos com os plugins e valida tudo no final.",
+      "novo": [
+        "Verificacao previa: disco, memoria, bateria, internet, Windows e aplicativos ja instalados",
+        "Ponto de restauracao do Windows + backup das chaves de configuracao na pasta Backups do pendrive",
+        "Botao RESTAURAR BACKUP para desfazer as alteracoes em campo",
+        "Instalacao automatica do AnyDesk, LedVision e NovaLCT a partir da pasta Instaladores",
+        "Aceite automatico dos plugins e drivers que o NovaLCT e o LedVision pedem durante a instalacao",
+        "Tema escuro do Windows, cor de destaque laranja e papel de parede oficial da Global LED (desktop e tela de bloqueio)",
+        "Validacao pos-aplicacao item a item, com contagem de OK e pontos de atencao",
+        "Relatorio salvo automaticamente na area de trabalho ao terminar",
+        "Aviso de nova versao dentro da propria interface e botao para abrir o tutorial",
+        "Arquivos autorun.inf e LEIA-ME.txt no pendrive"
+      ]
+    },
+    {
+      "numero": "1.0.0",
+      "data": "2026-08-03",
+      "resumo": "Primeira versao: interface grafica em PowerShell com as configuracoes basicas de padronizacao do notebook do painel.",
+      "novo": [
+        "Interface grafica WPF com caixas de selecao e log ao vivo",
+        "Energia: Desempenho Maximo, nunca suspender, tampa sem acao, sem hibernacao",
+        "Notificacoes, dicas e reinicio automatico desativados",
+        "Barra de tarefas limpa mantendo Iniciar, Pesquisa, Explorador e bandeja",
+        "OneDrive removido e sincronizacao bloqueada",
+        "Conta local Global sem senha com logon automatico (opcional)",
+        "Localizacao do AnyDesk, LedVision e NovaLCT com curinga de versao, atalhos, inicializacao e firewall"
+      ]
+    }
+  ],
+  "novidades": [
+    "Smart App Control (Controle de Aplicativos Inteligente) desligado de forma definitiva: o Windows nao bloqueia mais a abertura e a instalacao dos programas dias depois",
+    "SmartScreen de aplicativos, arquivos e da loja desligado, com instalacao liberada para programas de qualquer origem",
+    "Fim do aviso de 'editor desconhecido' e da marca de origem que travava o AppData do AnyDesk",
+    "Instalacao automatica dos aplicativos retirada: ela travava e deixava os apps pela metade",
+    "Nova opcao marcada por padrao: os instaladores do AnyDesk, LedVision e NovaLCT sao copiados para a pasta 'Instalar Programas LED' na area de trabalho",
+    "Bilhete 'LEIA ANTES.txt' na pasta com a ordem de instalacao para o tecnico",
+    "Validacao final confere o Controle de Aplicativos e o SmartScreen desligados"
+  ]
+}

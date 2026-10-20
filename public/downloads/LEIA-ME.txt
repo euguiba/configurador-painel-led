@@ -1,0 +1,150 @@
+====================================================
+ GLOBAL LED EXPERIENCE - CONFIGURADOR DE NOTEBOOK
+ Versao 3.5.0
+====================================================
+
+COMO USAR (tecnico em campo)
+IMPORTANTE: o Windows 11 bloqueia a execucao automatica de pendrives USB.
+Isso e uma protecao do proprio Windows e nao e defeito do kit.
+1. Plugue o pendrive, abra a unidade e de dois cliques em "INICIAR.cmd".
+2. No menu, escolha 1 (configurar) - ele entra sozinho em 5 segundos.
+3. Clique em SIM no aviso do Windows (permissao de administrador).
+4. Na janela: 1. VERIFICAR -> 2. BACKUP -> 3. APLICAR -> 4. VALIDAR.
+5. Reinicie o notebook.
+
+ ESTRUTURA DO PENDRIVE (v2.9.0)
+  \INICIAR.cmd                  -> UNICO arquivo que o tecnico abre
+  \ConfiguradorPainelLED.ps1    -> o script
+  \Wallpaper.jpg                -> papel de parede aplicado
+  \LEIA-ME.txt                  -> instrucoes rapidas para o tecnico em campo
+  \Instaladores\                -> coloque aqui AnyDesk.exe, LedVision.exe, NovaLCT.exe
+  \Backups\                     -> criado sozinho, guarda o backup de cada notebook
+  \_sistema\                    -> arquivos internos (nao precisa mexer)
+      autorun.inf               -> nome/icone da unidade
+      autounattend.xml          -> uso em instalacao do Windows iniciada por boot
+      VTOYEFI\                  -> arquivos EXCLUSIVOS para pendrive Ventoy (CD-ROM)
+
+SOBRE ABERTURA AUTOMATICA E VENTOY
+  O Windows 10/11 nao executa programas de pendrive sozinho por seguranca.
+  O autorun.inf pode mudar o nome/icone da unidade, mas nao garante abertura.
+  Sempre abra "INICIAR.cmd" manualmente.
+
+NOTEBOOK NOVO - PULAR CONFIGURACAO INICIAL DO WINDOWS (v3.2.2)
+  Na tela inicial do Windows, pressione SHIFT + F10, digite explorer e
+  pressione ENTER. Abra o pendrive, execute "INICIAR.cmd" e escolha a
+  opcao 2. Agora ele grava um ARQUIVO DE RESPOSTA do proprio Windows
+  (C:\Windows\Panther\unattend.xml) com a conta local Global
+  (administrador, sem senha), logon automatico e todas as telas do OOBE
+  desligadas, cria a conta tambem pelo prompt e REINICIA o notebook.
+  Depois do reinicio ele entra direto na area de trabalho, sem perguntas.
+  Quando o desktop aparecer, abra "INICIAR.cmd" e escolha a opcao 1.
+
+
+
+ORDEM DO PROCESSO (v3.2.3)
+  Primeiro o kit faz todos os ajustes do Windows (energia, notificacoes,
+  atualizacoes, OneDrive, extras e tema). SO NO FINAL ele remove os
+  programas de fabrica e instala AnyDesk, LedVision e NovaLCT, cria os
+  atalhos e ajusta a barra de tarefas. Assim os aplicativos instalados
+  nunca somem por causa da limpeza.
+
+INSTALACAO DOS APLICATIVOS (v3.3.0) - SEM JANELAS
+  A instalacao agora segue esta ordem, por aplicativo:
+  1) PACOTE PRONTO: se existir em Instaladores\Prontos, o app e copiado para
+     o notebook em segundos (programa, chaves do Windows, configuracoes e
+     atalho). Nenhuma janela, nenhum contrato, nenhum looping.
+  2) INTERNET (winget): se nao houver pacote pronto e o notebook estiver
+     on-line, o kit instala em silencio pelo gerenciador do proprio Windows.
+     Funciona muito bem para o AnyDesk.
+  3) INSTALADOR DA PASTA: so entra se os dois anteriores falharem E a opcao
+     "Tentar instalador com janela (ultimo recurso)" estiver marcada na tela.
+     Ela vem DESMARCADA: sem marcar, nenhuma janela de instalador aparece.
+  No fim, o console mostra por qual caminho cada app entrou (ou o que fazer
+  se faltou).
+
+PASSO OBRIGATORIO: PREPARE O NOTEBOOK MODELO UMA VEZ
+  Instale AnyDesk, LedVision e NovaLCT a mao em UM notebook, abra o
+  configurador e clique em "GERAR PACOTE PRONTO". O kit confere se a copia
+  tem arquivos e programa executavel, mostra o tamanho, copia tambem as
+  configuracoes do usuario e avisa em vermelho se algum dos tres nao estiver
+  instalado. Feito isso, o mesmo pendrive serve para todos os outros
+  notebooks: instalacao em segundos, sem janelas.
+
+WINDOWS DEFENDER (v2.9.0)
+  Alem das politicas, os servicos e as tarefas do Defender sao desativados.
+  Se a Protecao contra Adulteracao estiver ligada, use o botao
+  "ABRIR PROTECAO CONTRA ADULTERACAO", desligue a chave e clique de novo.
+
+
+
+ENERGIA (v2.2.3)
+ Fechar a tampa e os botoes ficam em NADA A FAZER e a tela nunca
+ desliga nem suspende, em TODOS os planos de energia, tanto na
+ tomada quanto na bateria. Os valores sao gravados como politica do
+ Windows e reaplicados por uma tarefa a cada inicializacao, entao
+ nao se perdem depois de reiniciar o notebook.
+
+ATALHOS DOS PROGRAMAS (v2.2.3)
+ O atalho so e criado quando o programa esta instalado no disco C:.
+ Instalador no pendrive nao vira atalho, e a pasta do programa recebe
+ permissao para todos os usuarios (fim do erro "o item com referencia
+ nesse atalho nao pode ser acessado").
+
+ANTIVIRUS BLOQUEANDO (v2.7.1)
+ Coloque o removedor oficial MCPR.exe dentro da pasta Instaladores.
+ Se a McAfee bloquear as configuracoes, clique em 0. ABRIR REMOVEDOR
+ OFICIAL. O configurador nao tenta mais parar processos ou servicos antes
+ desse botao, pois essa acao ativava a autoprotecao da McAfee. Conclua as
+ etapas na janela oficial e reinicie o notebook quando ela solicitar.
+ Se a abertura ainda for bloqueada, abra a pasta Instaladores, clique com
+ o botao direito no MCPR.exe e escolha Executar como administrador.
+
+LIMPEZA DE FABRICA (v2.5.0, reforcada em v2.7.2)
+ O configurador remove os programas inuteis que vem de fabrica nos
+ notebooks Lenovo e Samsung, desinstala o McAfee e pode desligar o
+ Windows Defender (o notebook fica sem antivirus ativo - o programa
+ pede confirmacao). O desligamento do Defender agora grava todas as
+ politicas de registro conhecidas (raiz, Real-Time Protection,
+ Signature Updates e Spynet) e nao regrava quando ja foi feito antes.
+ Use o botao VER O QUE SERA REMOVIDO para conferir a lista e desmarcar
+ o que deve ficar. Drivers, audio, video, teclas Fn e utilitarios de
+ energia do fabricante nunca sao removidos.
+ Se quiser a limpeza completa da McAfee, coloque o MCPR.exe (removedor
+ oficial) na pasta Instaladores do pendrive.
+
+
+CONTA DE USUARIO (v2.2.4)
+ O configurador NAO cria mais a conta local Global nem logon
+ automatico. O notebook continua na conta que ja existe; as
+ configuracoes sao gravadas no usuario atual e no perfil padrao
+ do Windows.
+
+ATUALIZACOES DO WINDOWS (v3.4.0)
+ O notebook busca e instala as atualizacoes a partir das 00:30.
+ O reinicio NAO acontece mais em horario fixo: uma tarefa confere a cada
+ 15 minutos se o Windows esta pedindo reinicio e, so nesse caso, reinicia
+ na hora, sem contagem na tela, sem mensagem e sem ninguem precisar
+ clicar em nada. A tarefa antiga de reinicio diario e apagada sozinha.
+ Se preferir que o notebook nunca reinicie sozinho, desmarque na tela a
+ opcao "Reiniciar sozinho assim que a atualizacao terminar (sem aviso)".
+
+INSTALACAO DOS APLICATIVOS (v3.5.0)
+ A instalacao automatica foi RETIRADA: ela travava e deixava os
+ aplicativos pela metade. Agora o configurador apenas copia os
+ instaladores da pasta Instaladores do pendrive para a pasta
+ "Instalar Programas LED" na area de trabalho do notebook.
+ Depois que o notebook reiniciar, de dois cliques em cada instalador
+ nesta ordem: 1) AnyDesk  2) LedVision  3) NovaLCT, aceitando tudo
+ o que for pedido (drivers e plugins inclusive).
+
+CONTROLE DE APLICATIVOS DO WINDOWS 11 (v3.5.0)
+ O Windows 11 liga sozinho, depois de alguns dias, o "Controle de
+ Aplicativos Inteligente". Quando isso acontece o notebook comeca a
+ barrar a abertura e a instalacao de programas sem selo da Microsoft
+ (NovaLCT, LedVision e o AnyDesk). O configurador agora desliga esse
+ recurso e o SmartScreen de aplicativos de forma definitiva, para o
+ notebook nunca mais travar dias depois de configurado.
+
+TUTORIAL E VERSOES
+ https://confignote-automatico.lovable.app
+ https://confignote-automatico.lovable.app/versoes

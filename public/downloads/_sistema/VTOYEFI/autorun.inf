@@ -1,0 +1,15 @@
+[AutoRun]
+open=AbrirConfigurador.bat
+icon=Configurador.ico,0
+label=GLOBAL LED - Configurador
+action=Abrir o Configurador Global LED
+shell\configurador=Abrir o &Configurador Global LED
+shell\configurador\command=AbrirConfigurador.bat
+shell\configurador\default=1
+shell\abrirtutorial=Abrir o &Tutorial no navegador
+shell\abrirtutorial\command=AbrirConfigurador.bat tutorial
+
+[Content]
+MusicFiles=false
+PictureFiles=false
+VideoFiles=false
