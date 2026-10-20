@@ -12,7 +12,8 @@
         "Reinicio sem contagem, sem mensagem e sem nenhuma janela no painel",
         "Se o notebook estiver desligado na segunda 00:00, o reinicio fica para a semana seguinte e nunca acontece de dia",
         "O botao 'DESLIGAR REINICIO AUTOMATICO AGORA' tambem aplica o reinicio semanal nos notebooks ja configurados",
-        "Validacao confere se o reinicio semanal ficou agendado"
+        "Validacao confere se o reinicio semanal ficou agendado",
+        "Limpeza: removidas as ultimas 5 funcoes que nada mais usava (rotas antigas de antivirus e de criacao de perfil)"
       ]
     },
     {
@@ -444,6 +445,7 @@
     "Reinicio sem contagem, sem mensagem e sem nenhuma janela no painel",
     "Se o notebook estiver desligado na segunda 00:00, o reinicio fica para a semana seguinte e nunca acontece de dia",
     "O botao 'DESLIGAR REINICIO AUTOMATICO AGORA' tambem aplica o reinicio semanal nos notebooks ja configurados",
-    "Validacao confere se o reinicio semanal ficou agendado"
+    "Validacao confere se o reinicio semanal ficou agendado",
+    "Limpeza: removidas as ultimas 5 funcoes que nada mais usava (rotas antigas de antivirus e de criacao de perfil)"
   ]
 }

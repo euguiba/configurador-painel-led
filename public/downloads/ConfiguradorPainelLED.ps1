@@ -54,34 +54,6 @@ function Remove-Reg {
     }
 }
 
-# Cria o perfil de um usuario local sem precisar fazer logon com ele.
-Add-Type -ErrorAction SilentlyContinue -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-using System.Text;
-public class GlobalLEDProfile {
-    [DllImport("userenv.dll", CharSet = CharSet.Unicode, ExactSpelling = false, SetLastError = true)]
-    public static extern int CreateProfile(string pszUserSid, string pszUserName, StringBuilder pszProfilePath, uint cchProfilePath);
-}
-'@
-
-function New-PerfilUsuario {
-    param([string]$Nome)
-    try {
-        $u = Get-LocalUser -Name $Nome -ErrorAction Stop
-        $sid = $u.SID.Value
-        $perfil = Get-CimInstance Win32_UserProfile -ErrorAction SilentlyContinue | Where-Object { $_.SID -eq $sid }
-        if ($perfil -and (Test-Path (Join-Path $perfil.LocalPath 'NTUSER.DAT'))) { return $perfil.LocalPath }
-        $sb = New-Object System.Text.StringBuilder 260
-        [GlobalLEDProfile]::CreateProfile($sid, $Nome, $sb, 260) | Out-Null
-        Start-Sleep -Seconds 1
-        $perfil = Get-CimInstance Win32_UserProfile -ErrorAction SilentlyContinue | Where-Object { $_.SID -eq $sid }
-        if ($perfil) { return $perfil.LocalPath }
-        if ($sb.Length -gt 0) { return $sb.ToString() }
-    } catch { }
-    return $null
-}
-
 function Open-HivesUsuario {
     $script:HivesUsuario = @('HKCU:')
     $script:HivesCarregados = @()
@@ -150,10 +122,6 @@ function Set-Etapa {
     if ($Passo -ge 0) { $global:Estado.Passo = $Passo }
     if ($Grupo) { $global:Estado.Grupo = $Grupo }
 }
-
-# Mantido por compatibilidade: com o trabalho fora da thread da tela nao e
-# mais preciso devolver o controle para o WPF manualmente.
-function Update-Interface { }
 
 
 # ---------- 1. ENERGIA ----------
@@ -1558,35 +1526,6 @@ function Invoke-RemoverMcAfee {
     }
 }
 
-function Invoke-RemoverAntivirusTerceiros {
-    Write-Log 'EXCLUINDO ANTIVIRUS DE TERCEIROS' 'title'
-    Invoke-DesarmarAntivirus
-
-    $encontrados = @(Get-ProgramasFabrica -Forcar | Where-Object { $_.Fabricante -eq 'Antivirus' })
-    if ($encontrados.Count -eq 0) {
-        Write-Log 'Nenhum desinstalador de antivirus foi encontrado no registro do Windows.' 'info'
-    } else {
-        foreach ($prog in $encontrados) {
-            Write-Log "Executando o desinstalador de: $($prog.Nome)..."
-            [void](Remove-ProgramaFabrica $prog)
-        }
-    }
-
-    Invoke-RemoverMcAfee
-    $script:CacheBloat = $null
-    $restantes = @(Get-ProgramasFabrica -Forcar | Where-Object { $_.Fabricante -eq 'Antivirus' })
-    if ($restantes.Count -eq 0) {
-        Write-Log 'Antivirus de terceiros removido. Reinicie o notebook para concluir a limpeza.' 'ok'
-        $global:Estado.Final = 'Antivirus removido. Reinicie o notebook.'
-    } else {
-        $nomes = ($restantes | ForEach-Object { $_.Nome }) -join ', '
-        Write-Log "Ainda instalado: $nomes" 'erro'
-        Write-Log 'Use o MCPR.exe oficial na pasta Instaladores e conclua a janela do removedor.' 'warn'
-        $global:Estado.Falhas = [int]$restantes.Count
-        $global:Estado.Final = 'Remocao incompleta. Veja as linhas vermelhas no console.'
-    }
-}
-
 # ---------- 9. DESLIGAR O WINDOWS DEFENDER (v2.5.0, reforcado em v2.7.2) ----------
 function Invoke-DesligarDefender {
     Write-Log 'DESLIGANDO A PROTECAO DO WINDOWS DEFENDER' 'title'
@@ -1941,25 +1880,6 @@ function Invoke-AgendarModoSeguro {
         Write-Log "Nao foi possivel agendar o Modo de Seguranca: $($_.Exception.Message)" 'erro'
         $global:Estado.Falhas = [int]$global:Estado.Falhas + 1
         return $false
-    }
-}
-
-function Invoke-CancelarModoSeguro {
-    Write-Log 'CANCELANDO O AGENDAMENTO DO MODO DE SEGURANCA' 'title'
-    & bcdedit.exe /deletevalue '{current}' safeboot 2>&1 | Out-Null
-    Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce' -Name '*PainelLEDModoSeguro' -Force -ErrorAction SilentlyContinue
-    Write-Log 'Boot normal restaurado e execucao automatica removida.' 'ok'
-}
-
-# Remocao guiada: tenta no Windows normal e, se a autoprotecao vencer, agenda o Modo de Seguranca.
-function Invoke-RemoverAntivirusComFallback {
-    Invoke-RemoverAntivirusTerceiros
-    $script:CacheBloat = $null
-    $restantes = @(Get-ProgramasFabrica -Forcar | Where-Object { $_.Fabricante -eq 'Antivirus' })
-    if ($restantes.Count -eq 0) { return }
-    Write-Log 'A autoprotecao impediu a remocao no Windows normal. Partindo para o Modo de Seguranca.' 'warn'
-    if (Invoke-AgendarModoSeguro) {
-        $global:Estado.Final = 'Antivirus resistente: reinicie o notebook para concluir no Modo de Seguranca.'
     }
 }
 
