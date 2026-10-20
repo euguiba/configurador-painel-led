@@ -72,7 +72,8 @@ const modulos = [
     titulo: "Atualizações na madrugada",
     itens: [
       "Windows Update baixa e instala tudo automaticamente a partir das 00:30",
-      "Por padrão o notebook NUNCA reinicia sozinho — nem depois de atualização, nem em horário fixo",
+      "Sem reinícios fora de hora: o notebook não reinicia sozinho durante o dia nem depois de cada atualização",
+      "Reinício semanal toda segunda-feira às 00:00, silencioso, sem nenhuma janela no painel",
       "Horário ativo das 06:00 às 00:00: nem atualização forçada reinicia durante o dia",
       "Reinício automático opcional: só de madrugada (até 06:00) e só quando o Windows Update pedir",
       "Botão “DESLIGAR REINÍCIO AUTOMÁTICO AGORA” para notebooks já configurados",

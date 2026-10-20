@@ -1,8 +1,20 @@
 {
-  "versao": "3.6.1",
+  "versao": "3.7.0",
   "data": "2026-10-20",
   "arquivo": "/downloads/ConfiguradorPainelLED.ps1",
   "historico": [
+    {
+      "numero": "3.7.0",
+      "data": "2026-10-20",
+      "resumo": "Reinicio semanal silencioso toda segunda-feira as 00:00 para concluir as atualizacoes.",
+      "novo": [
+        "Nova opcao 'Reiniciar toda segunda-feira as 00:00 (sem aviso)', marcada por padrao",
+        "Reinicio sem contagem, sem mensagem e sem nenhuma janela no painel",
+        "Se o notebook estiver desligado na segunda 00:00, o reinicio fica para a semana seguinte e nunca acontece de dia",
+        "O botao 'DESLIGAR REINICIO AUTOMATICO AGORA' tambem aplica o reinicio semanal nos notebooks ja configurados",
+        "Validacao confere se o reinicio semanal ficou agendado"
+      ]
+    },
     {
       "numero": "3.6.1",
       "data": "2026-10-20",
@@ -428,8 +440,10 @@
     }
   ],
   "novidades": [
-    "Removido o codigo da instalacao automatica (pacote pronto, winget, instalador com janela, busca dos apps no disco, atalhos e firewall dos apps): cerca de 620 linhas a menos",
-    "Cada botao abre mais rapido, porque o script inteiro e recarregado a cada tarefa",
-    "Nenhuma mudanca no que o kit faz no notebook: continua copiando os instaladores para a area de trabalho"
+    "Nova opcao 'Reiniciar toda segunda-feira as 00:00 (sem aviso)', marcada por padrao",
+    "Reinicio sem contagem, sem mensagem e sem nenhuma janela no painel",
+    "Se o notebook estiver desligado na segunda 00:00, o reinicio fica para a semana seguinte e nunca acontece de dia",
+    "O botao 'DESLIGAR REINICIO AUTOMATICO AGORA' tambem aplica o reinicio semanal nos notebooks ja configurados",
+    "Validacao confere se o reinicio semanal ficou agendado"
   ]
 }

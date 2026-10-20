@@ -503,9 +503,41 @@ function Invoke-DesligarReinicioAuto {
             Write-Log 'Atualizacao noturna nao roda mais de dia quando o notebook liga.' 'ok'
         }
 
-        Write-Log 'O notebook so reinicia quando o tecnico mandar (botao REINICIAR PC ou menu Iniciar).' 'ok'
+        Write-Log 'Nenhum reinicio fora de hora: nem do Windows, nem das tarefas antigas do kit.' 'ok'
     } catch {
         Write-Log "Falha ao desligar o reinicio automatico: $($_.Exception.Message)" 'erro'
+    }
+}
+
+# ---------- 1d. REINICIO SEMANAL (v3.7.0) ----------
+# Sem reinicio automatico, as atualizacoes ficam instaladas pela metade esperando
+# um reinicio. Um reinicio fixo por semana (segunda-feira 00:00) conclui tudo.
+# Silencioso: roda como SYSTEM, sem janela, sem contagem e sem aviso no painel.
+# Sem StartWhenAvailable de proposito: se o notebook estiver desligado na
+# segunda 00:00, o reinicio NAO acontece depois, quando ele for ligado de dia.
+function Invoke-ReinicioSemanal {
+    param([bool]$Ligar = $true)
+    $nome = 'PainelLED - Reinicio semanal'
+    try {
+        if (-not $Ligar) {
+            if (Get-ScheduledTask -TaskName $nome -ErrorAction SilentlyContinue) {
+                Unregister-ScheduledTask -TaskName $nome -Confirm:$false -ErrorAction SilentlyContinue
+                Write-Log 'Reinicio semanal removido: o notebook so reinicia quando o tecnico mandar.' 'warn'
+            }
+            return
+        }
+        Write-Log 'REINICIO SEMANAL' 'title'
+        $acao    = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\shutdown.exe" -Argument '/r /f /t 0 /d p:4:1'
+        $gatilho = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday -At ([datetime]::Today)
+        # Hora local (sem o "Z" de UTC): fica sempre 00:00 no relogio do notebook
+        $gatilho.StartBoundary = [datetime]::Today.ToString('yyyy-MM-ddTHH:mm:ss')
+        $conf    = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
+        $princ   = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+        Register-ScheduledTask -TaskName $nome -Action $acao -Trigger $gatilho -Settings $conf -Principal $princ -Force -ErrorAction Stop | Out-Null
+        Write-Log 'Reinicio toda segunda-feira as 00:00, sem aviso e sem nenhuma janela no painel.' 'ok'
+        Write-Log 'Se o notebook estiver desligado nesse horario, o reinicio fica para a semana seguinte.' 'info'
+    } catch {
+        Write-Log "Falha ao agendar o reinicio semanal: $($_.Exception.Message)" 'erro'
     }
 }
 
@@ -642,7 +674,7 @@ function Invoke-Extras {
 }
 
 # ---------- VERSAO / ATUALIZACAO ----------
-$script:Versao  = '3.6.1'
+$script:Versao  = '3.7.0'
 $script:SiteUrl = 'https://confignote-automatico.lovable.app'
 # Na thread paralela nao existe $PSCommandPath: a interface passa a pasta do
 # pendrive pela variavel global PastaPendrive.
@@ -1122,6 +1154,9 @@ function Invoke-Validacao {
         Test-Item 'Reinicio so de madrugada, quando a atualizacao pedir' { [bool](Get-ScheduledTask -TaskName 'PainelLED - Reinicio apos atualizacao' -ErrorAction SilentlyContinue) }
     } else {
         Test-Item 'Sem reinicio automatico apos atualizacao' { -not (Get-ScheduledTask -TaskName 'PainelLED - Reinicio apos atualizacao' -ErrorAction SilentlyContinue) }
+    }
+    if ($Opcoes -and $Opcoes.ReinicioSemanal) {
+        Test-Item 'Reinicio semanal (segunda 00:00) agendado' { [bool](Get-ScheduledTask -TaskName 'PainelLED - Reinicio semanal' -ErrorAction SilentlyContinue) }
     }
     Test-Item 'Reinicio diario em horario fixo removido' { -not (Get-ScheduledTask -TaskName 'PainelLED - Reinicio noturno' -ErrorAction SilentlyContinue) }
     Test-Item 'Windows nao reinicia com usuario logado' { (Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoRebootWithLoggedOnUsers -ErrorAction SilentlyContinue).NoAutoRebootWithLoggedOnUsers -eq 1 }
@@ -2060,8 +2095,10 @@ function Invoke-RemoverAntivirusComFallback {
               <CheckBox x:Name="cbReinicioAuto" IsChecked="False" Margin="22,8,0,0" Content="Reiniciar sozinho apos a atualizacao (so de madrugada, ate 06:00)"/>
               <TextBlock x:Name="txtJanela" Text="" Foreground="#7C8695" TextWrapping="Wrap" FontSize="11" Margin="22,6,0,0"/>
               <TextBlock Text="Busca e instala o que o Windows Update encontrar no horario escolhido. Desmarcado (padrao), o notebook NUNCA reinicia sozinho: nem depois de atualizacao, nem em horario fixo." Foreground="#7C8695" TextWrapping="Wrap" FontSize="11" Margin="22,2,0,0"/>
+              <CheckBox x:Name="cbReinicioSemanal" IsChecked="True" Margin="22,10,0,0" Content="Reiniciar toda segunda-feira as 00:00 (sem aviso)"/>
+              <TextBlock Text="Conclui as atualizacoes que ficaram esperando reinicio. Silencioso: nenhuma janela aparece no painel. Se o notebook estiver desligado nesse horario, fica para a semana seguinte." Foreground="#7C8695" TextWrapping="Wrap" FontSize="11" Margin="22,2,0,0"/>
               <Button x:Name="btnSemReinicio" Content="DESLIGAR REINICIO AUTOMATICO AGORA" Background="#3A2118" Foreground="#FFB08A" Margin="22,10,0,0" HorizontalAlignment="Left"/>
-              <TextBlock Text="Para notebook que ja foi configurado e esta reiniciando sozinho: desliga so o reinicio automatico, sem passar o resto do kit de novo." Foreground="#7C8695" TextWrapping="Wrap" FontSize="11" Margin="22,4,0,0"/>
+              <TextBlock Text="Para notebook que ja foi configurado: desliga os reinicios fora de hora e aplica o reinicio semanal (se marcado acima), sem passar o resto do kit de novo." Foreground="#7C8695" TextWrapping="Wrap" FontSize="11" Margin="22,4,0,0"/>
             </StackPanel>
           </GroupBox>
 
@@ -2222,7 +2259,7 @@ $ctl = @{}
 foreach ($n in @('cbPreCheck','cbBackup','cbEnergia','cbUpdate','cbNotif','cbTaskbar','cbAparencia','cbOneDrive',
                  'cbCopiarInst','cbExtras','cbValidar','btnSemReinicio',
                  'cbBloat','cbMcAfee','cbDefender','btnVerLista','btnDesarmar','btnModoSeguro','btnTamper','stLimpeza',
-                 'cbHoraInicio','cbReinicioAuto','txtJanela',
+                 'cbHoraInicio','cbReinicioAuto','cbReinicioSemanal','txtJanela',
                  'rtLog','txtVersao','txtStatus','btnVerificar','btnBackup','btnAplicar','btnValidar','btnTodos',
                  'btnSalvar','btnRestaurar','btnAtualizar','btnTutorial','btnReiniciar',
                  'pbProgresso','txtEtapa','txtTempo',
@@ -2375,7 +2412,7 @@ $ctl['btnTodos'].Add_Click({
     $conta = 0
     foreach ($n in @('cbPreCheck','cbBackup','cbBloat','cbMcAfee','cbDefender',
                      'cbEnergia','cbUpdate','cbNotif','cbTaskbar','cbAparencia','cbOneDrive',
-                     'cbCopiarInst','cbExtras','cbValidar')) {
+                     'cbCopiarInst','cbExtras','cbValidar','cbReinicioSemanal')) {
         try {
             $c = $ctl[$n]
             if ($c) { $c.IsChecked = $alvo; $conta++ }
@@ -2533,6 +2570,7 @@ function Get-Opcoes {
         Validar   = [bool]$ctl['cbValidar'].IsChecked
         HoraIni   = (Get-HoraSel 'cbHoraInicio' '00:30')
         ReinicioAuto = [bool]$ctl['cbReinicioAuto'].IsChecked
+        ReinicioSemanal = [bool]$ctl['cbReinicioSemanal'].IsChecked
     }
 }
 
@@ -2788,6 +2826,7 @@ $ctl['btnSemReinicio'].Add_Click({
     Start-Tarefa -Nome 'Desligando o reinicio automatico' -Final 'Reinicio automatico desligado.' -Corpo {
         Set-Etapa 'Desligando o reinicio automatico' 0 'Update'
         Invoke-DesligarReinicioAuto
+        Invoke-ReinicioSemanal -Ligar ([bool]$Opcoes.ReinicioSemanal)
     }
 })
 
@@ -2801,6 +2840,7 @@ $ctl['btnAplicar'].Add_Click({
     }
     $total = 2   # desarmar antivirus + perfis de usuario
     $total++   # desligar o controle de aplicativos do Windows 11
+    $total++   # reinicio semanal (liga ou remove, conforme a opcao)
     foreach ($v in @($o.PreCheck,$o.Backup,($o.Bloat -or $o.McAfee),$o.Defender,$o.CopiarInst,$o.Energia,$o.Notif,$o.Update,
                      $o.OneDrive,$o.Extras,$o.Aparencia,$o.Taskbar,$o.Validar)) {
         if ($v) { $total++ }
@@ -2826,6 +2866,8 @@ $ctl['btnAplicar'].Add_Click({
         if ($Opcoes.Energia)  { $i++; Set-Etapa 'Energia e desempenho' $i 'Energia'; Invoke-Energia }
         if ($Opcoes.Notif)    { $i++; Set-Etapa 'Notificacoes' $i 'Interface'; Invoke-Notificacoes }
         if ($Opcoes.Update)   { $i++; Set-Etapa 'Atualizacoes na madrugada' $i 'Update'; Invoke-WindowsUpdate -HoraInicio $Opcoes.HoraIni -ReiniciarAposAtualizar ([bool]$Opcoes.ReinicioAuto) }
+        # SEMPRE: aplica a opcao do reinicio semanal (marcada liga, desmarcada remove a tarefa)
+        $i++; Set-Etapa 'Reinicio semanal' $i 'Update'; Invoke-ReinicioSemanal -Ligar ([bool]$Opcoes.ReinicioSemanal)
         if ($Opcoes.OneDrive) { $i++; Set-Etapa 'Removendo o OneDrive' $i 'Conta'; Invoke-RemoverOneDrive }
         if ($Opcoes.Extras)    { $i++; Set-Etapa 'Ajustes extras' $i 'Extras'; Invoke-Extras }
         if ($Opcoes.Aparencia) { $i++; Set-Etapa 'Tema e papel de parede' $i 'Interface'; Invoke-Aparencia }
