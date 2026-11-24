@@ -14,7 +14,8 @@
         "AnyDesk com acesso nao supervisionado no perfil Acesso integral; LedVision inicia com o Windows, exibe o programa, minimizado e em portugues",
         "Wi-Fi da empresa conectado sozinho; senhas ficam so no config-local.json do pendrive e sao apagadas do notebook no final",
         "Tela final VERDE (concluido) ou VERMELHA (verificar) e inventario em CSV com serie e ID do AnyDesk",
-        "Opcao 4 no INICIAR.cmd para o modo automatico"
+        "Opcao 4 no INICIAR.cmd para o modo automatico",
+        "Correcao do 1o teste: a tela inicial do Windows e detectada por varios sinais (conta do sistema, defaultuser0, OOBE); a configuracao so roda logada na conta do notebook"
       ]
     },
     {
@@ -461,6 +462,7 @@
     "AnyDesk com acesso nao supervisionado no perfil Acesso integral; LedVision inicia com o Windows, exibe o programa, minimizado e em portugues",
     "Wi-Fi da empresa conectado sozinho; senhas ficam so no config-local.json do pendrive e sao apagadas do notebook no final",
     "Tela final VERDE (concluido) ou VERMELHA (verificar) e inventario em CSV com serie e ID do AnyDesk",
-    "Opcao 4 no INICIAR.cmd para o modo automatico"
+    "Opcao 4 no INICIAR.cmd para o modo automatico",
+    "Correcao do 1o teste: a tela inicial do Windows e detectada por varios sinais (conta do sistema, defaultuser0, OOBE); a configuracao so roda logada na conta do notebook"
   ]
 }
