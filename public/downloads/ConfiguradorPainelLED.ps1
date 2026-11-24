@@ -2267,6 +2267,22 @@ function Show-TelaFinal {
     }
 }
 
+# Esta na tela inicial do Windows (OOBE)? Varios sinais, porque nem todo
+# Windows tem os mesmos: o teste da v3.8.0 mostrou que confiar so no
+# OOBEInProgress fazia o notebook instalar tudo ainda na tela inicial.
+# Devolve a lista de motivos (vazia = area de trabalho normal).
+function Get-MotivosOOBE {
+    $motivos = @()
+    $id = [Security.Principal.WindowsIdentity]::GetCurrent()
+    if ($id.User.Value -eq 'S-1-5-18') { $motivos += 'rodando como conta do sistema (SYSTEM)' }
+    if ($id.Name -match '(?i)\\defaultuser0$') { $motivos += 'rodando como conta temporaria da instalacao (defaultuser0)' }
+    $s = Get-ItemProperty 'HKLM:\SYSTEM\Setup' -ErrorAction SilentlyContinue
+    if ($s.OOBEInProgress -eq 1)        { $motivos += 'OOBEInProgress=1' }
+    if ($s.SystemSetupInProgress -eq 1) { $motivos += 'SystemSetupInProgress=1' }
+    if (Get-Process -Name 'msoobe' -ErrorAction SilentlyContinue) { $motivos += 'msoobe aberto' }
+    return $motivos   # quem chama usa @(...): lista vazia = area de trabalho
+}
+
 function Invoke-ModoAutomatico {
     param([string]$Etapa)
     if (-not (Test-Path "$script:PastaDados\logs")) { New-Item -ItemType Directory -Path "$script:PastaDados\logs" -Force | Out-Null }
@@ -2277,7 +2293,20 @@ function Invoke-ModoAutomatico {
     $global:Estado = [hashtable]::Synchronized(@{ Fila = $null; Falhas = 0; Final = ''; Texto = ''; Passo = 0; Total = 0; Grupo = '' })
     $global:Opcoes = @{ ReinicioAuto = $false; ReinicioSemanal = $true; CopiarInst = $false }
     Write-Log "MODO AUTOMATICO v$script:Versao - etapa $Etapa" 'title'
+    $idAtual = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+    Write-Log "Rodando como: $idAtual" 'info'
     $cfg = Get-ConfigLocal
+    $motivosOOBE = @(Get-MotivosOOBE)
+    if ($motivosOOBE.Count) { Write-Log "Tela inicial do Windows detectada: $($motivosOOBE -join '; ')" 'info' }
+    $codigo = 0
+
+    # Trava de seguranca: Configurar e Final so rodam logados na conta do
+    # notebook. Na tela inicial do Windows elas param antes de mexer em algo.
+    if ($Etapa -ne 'Preparar' -and $motivosOOBE.Count) {
+        Write-Log "A etapa $Etapa so roda depois do logon na conta do notebook. NADA foi alterado." 'erro'
+        try { Stop-Transcript | Out-Null } catch { }
+        return 3
+    }
 
     switch ($Etapa) {
         'Preparar' {
@@ -2285,6 +2314,7 @@ function Invoke-ModoAutomatico {
             if (-not (Test-Path $script:ChaveAuto)) { New-Item -Path $script:ChaveAuto -Force | Out-Null }
             Set-ItemProperty $script:ChaveAuto 'Tentativas' 0 -Type DWord
             Set-EtapaAutomatica 'Configurar'
+            if ($motivosOOBE.Count) { $codigo = 10 }   # GO.cmd: pular a configuracao inicial e reiniciar
         }
 
         'Configurar' {
@@ -2387,6 +2417,7 @@ function Invoke-ModoAutomatico {
         }
     }
     try { Stop-Transcript | Out-Null } catch { }
+    return $codigo
 }
 
 
@@ -2396,8 +2427,10 @@ function Invoke-ModoAutomatico {
 
 # Modo automatico: roda a etapa e sai, sem abrir a interface.
 if ($Automatico) {
-    Invoke-ModoAutomatico -Etapa $Etapa
-    exit
+    # Codigo de saida: 10 = esta na tela inicial do Windows (o GO.cmd usa isso
+    # para pular a configuracao inicial), 3 = etapa recusada, 0 = normal.
+    $codigoSaida = [int](Invoke-ModoAutomatico -Etapa $Etapa | Select-Object -Last 1)
+    exit $codigoSaida
 }
 
 # ---------- INTERFACE (XAML) ----------

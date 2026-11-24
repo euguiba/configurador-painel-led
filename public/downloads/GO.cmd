@@ -46,6 +46,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem -LiteralPa
 
 echo  Preparando o modo automatico (Wi-Fi e proximas etapas)...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%local%\ConfiguradorPainelLED.ps1" -Automatico -Etapa Preparar
+:: 10 = o script detectou a tela inicial do Windows (varios sinais, nao so um)
+set "etapa=%errorlevel%"
 
 color 2F
 echo.
@@ -56,11 +58,7 @@ echo  ==================================================
 echo.
 
 :: Esta na tela inicial do Windows (OOBE)?
-set "oobe=0"
-for /f "tokens=3" %%V in ('reg query "HKLM\SYSTEM\Setup" /v OOBEInProgress 2^>nul ^| find "OOBEInProgress"') do (
-    if "%%V"=="0x1" set "oobe=1"
-)
-if "%oobe%"=="1" (
+if "%etapa%"=="10" (
     echo  Pulando a configuracao inicial do Windows e reiniciando...
     timeout /t 5 /nobreak >nul
     call "%local%\INICIAR.cmd" 2
