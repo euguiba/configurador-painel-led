@@ -33,6 +33,7 @@ exit /b 1
 
 :temScript
 if "%~1"=="1" goto :configurar
+if "%~1"=="2" goto :oobe
 cls
 echo.
 echo  ==================================================
@@ -44,11 +45,17 @@ echo.
 echo   [1] Configurar este notebook  (padrao)
 echo   [2] Pular a configuracao inicial do Windows (OOBE)
 echo   [3] Copiar para este notebook e liberar o pendrive (modo portatil)
+echo   [4] MODO AUTOMATICO: configura e instala tudo sozinho (GO.cmd)
 echo.
-choice /C 123 /T 8 /D 1 /N /M "  Escolha (1, 2 ou 3), inicia sozinho em 8s: "
+choice /C 1234 /T 8 /D 1 /N /M "  Escolha (1, 2, 3 ou 4), inicia sozinho em 8s: "
+if errorlevel 4 goto :automatico
 if errorlevel 3 goto :portatil
 if errorlevel 2 goto :oobe
 goto :configurar
+
+:automatico
+call "%raiz%GO.cmd"
+exit /b 0
 
 :portatil
 set "local=C:\ConfiguradorLED"

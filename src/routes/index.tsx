@@ -57,6 +57,16 @@ export const Route = createFileRoute("/")({
 
 const modulos = [
   {
+    icon: RefreshCw,
+    titulo: "Modo automático (em teste)",
+    itens: [
+      "Na tela inicial do Windows: SHIFT+F10 e D:\\GO — depois disso, nenhum clique",
+      "O kit se copia para o disco C: e o pendrive já pode ir para o próximo notebook",
+      "Instala AnyDesk, LedVision, NovaLCT, LEDTool e LEDBatchController em silêncio, com os drivers",
+      "Tela final verde ou vermelha e inventário com número de série e ID do AnyDesk",
+    ],
+  },
+  {
     icon: BatteryCharging,
     titulo: "Energia",
     itens: [

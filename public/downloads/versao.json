@@ -1,8 +1,22 @@
 {
-  "versao": "3.7.0",
-  "data": "2026-10-20",
+  "versao": "3.8.0",
+  "data": "2026-11-24",
   "arquivo": "/downloads/ConfiguradorPainelLED.ps1",
   "historico": [
+    {
+      "numero": "3.8.0",
+      "data": "2026-11-24",
+      "resumo": "Modo automatico (em teste): o notebook se configura e instala os programas sozinho, sem nenhum clique.",
+      "novo": [
+        "Novo GO.cmd: na tela inicial do Windows, SHIFT+F10 e D:\\GO; depois disso nao precisa mexer em nada",
+        "O kit se copia para o disco C: no primeiro minuto: o pendrive ja pode ir para o proximo notebook",
+        "Instalacao silenciosa do AnyDesk, LedVision, NovaLCT, LEDTool e LEDBatchController, com os drivers pre-aprovados",
+        "AnyDesk com acesso nao supervisionado no perfil Acesso integral; LedVision inicia com o Windows, exibe o programa, minimizado e em portugues",
+        "Wi-Fi da empresa conectado sozinho; senhas ficam so no config-local.json do pendrive e sao apagadas do notebook no final",
+        "Tela final VERDE (concluido) ou VERMELHA (verificar) e inventario em CSV com serie e ID do AnyDesk",
+        "Opcao 4 no INICIAR.cmd para o modo automatico"
+      ]
+    },
     {
       "numero": "3.7.0",
       "data": "2026-10-20",
@@ -441,11 +455,12 @@
     }
   ],
   "novidades": [
-    "Nova opcao 'Reiniciar toda segunda-feira as 00:00 (sem aviso)', marcada por padrao",
-    "Reinicio sem contagem, sem mensagem e sem nenhuma janela no painel",
-    "Se o notebook estiver desligado na segunda 00:00, o reinicio fica para a semana seguinte e nunca acontece de dia",
-    "O botao 'DESLIGAR REINICIO AUTOMATICO AGORA' tambem aplica o reinicio semanal nos notebooks ja configurados",
-    "Validacao confere se o reinicio semanal ficou agendado",
-    "Limpeza: removidas as ultimas 5 funcoes que nada mais usava (rotas antigas de antivirus e de criacao de perfil)"
+    "Novo GO.cmd: na tela inicial do Windows, SHIFT+F10 e D:\\GO; depois disso nao precisa mexer em nada",
+    "O kit se copia para o disco C: no primeiro minuto: o pendrive ja pode ir para o proximo notebook",
+    "Instalacao silenciosa do AnyDesk, LedVision, NovaLCT, LEDTool e LEDBatchController, com os drivers pre-aprovados",
+    "AnyDesk com acesso nao supervisionado no perfil Acesso integral; LedVision inicia com o Windows, exibe o programa, minimizado e em portugues",
+    "Wi-Fi da empresa conectado sozinho; senhas ficam so no config-local.json do pendrive e sao apagadas do notebook no final",
+    "Tela final VERDE (concluido) ou VERMELHA (verificar) e inventario em CSV com serie e ID do AnyDesk",
+    "Opcao 4 no INICIAR.cmd para o modo automatico"
   ]
 }

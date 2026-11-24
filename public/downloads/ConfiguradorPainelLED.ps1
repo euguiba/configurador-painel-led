@@ -4,16 +4,22 @@
  Interface grafica (WPF) para padronizar notebooks de instalacao.
  Windows 10/11 - PowerShell 5.1+
  Execute pelo atalho "Iniciar.bat" (ja abre como Administrador).
+ Modo automatico (v3.8.0): -Automatico -Etapa Preparar|Configurar|Final
+ (iniciado pelo GO.cmd do pendrive, sem janela e sem nenhuma pergunta).
 =====================================================================
 #>
+param(
+    [switch]$Automatico,
+    [ValidateSet('Preparar','Configurar','Final')][string]$Etapa = 'Configurar'
+)
 
 # ---------- AUTO ELEVACAO ----------
 $ErrorActionPreference = 'SilentlyContinue'
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Start-Process powershell.exe -Verb RunAs -ArgumentList @(
-        '-NoProfile','-ExecutionPolicy','Bypass','-File',"`"$PSCommandPath`""
-    )
+    $argsElev = @('-NoProfile','-ExecutionPolicy','Bypass','-File',"`"$PSCommandPath`"")
+    if ($Automatico) { $argsElev += @('-Automatico','-Etapa',$Etapa) }
+    Start-Process powershell.exe -Verb RunAs -ArgumentList $argsElev
     exit
 }
 
@@ -642,7 +648,7 @@ function Invoke-Extras {
 }
 
 # ---------- VERSAO / ATUALIZACAO ----------
-$script:Versao  = '3.7.0'
+$script:Versao  = '3.8.0'
 $script:SiteUrl = 'https://confignote-automatico.lovable.app'
 # Na thread paralela nao existe $PSCommandPath: a interface passa a pasta do
 # pendrive pela variavel global PastaPendrive.
@@ -824,7 +830,7 @@ public class GLWin {
 }
 "@ -ErrorAction SilentlyContinue
 
-        $titulos  = 'Setup|Install|Instal|Plugin|Driver|Wizard|Assistente|NovaLCT|LedVision|AnyDesk|Nova\s*Star|Mars|Smart\s*Module|Visual C\+\+|Seguran|Security|License|Licen|Uninstall|Desinstal|Remove|Remover'
+        $titulos  = 'Setup|Install|Instal|Plugin|Driver|Wizard|Assistente|NovaLCT|LedVision|AnyDesk|Nova\s*Star|Mars|Smart\s*Module|Visual C\+\+|Seguran|Security|License|Licen|Uninstall|Desinstal|Remove|Remover|LED\s*Tool|LEDBatch|WinPcap|Hikvision|ColorLight|Prolific|PL-?2303|Konica'
 
         # Botoes por PRIORIDADE (o primeiro que existir e estiver habilitado ganha)
         $prioridade = @(
@@ -1884,9 +1890,515 @@ function Invoke-AgendarModoSeguro {
 }
 
 
+# =====================================================================
+#  MODO AUTOMATICO (v3.8.0)
+#  O GO.cmd copia o kit para C:\ConfiguradorLED e chama:
+#    -Etapa Preparar   -> Wi-Fi + agenda a etapa Configurar no proximo logon
+#    -Etapa Configurar -> tudo do APLICAR + instala os programas, reinicia
+#    -Etapa Final      -> confere, grava o inventario e mostra a tela final
+#  Nenhuma etapa faz pergunta. Senhas ficam no config-local.json, que so
+#  existe no pendrive (nunca no GitHub nem no kit publicado no site).
+# =====================================================================
+$script:PastaDados  = 'C:\ProgramData\GlobalLED'
+$script:TarefaAuto  = 'PainelLED - Modo automatico'
+$script:ChaveAuto   = 'HKLM:\SOFTWARE\GlobalLED\ModoAutomatico'
+
+# Programas instalados no modo automatico, na ordem. Arquivo = nome do
+# instalador na pasta Instaladores; Registro = nome no "Adicionar/remover".
+$script:ProgramasAuto = @(
+    @{ Nome = 'AnyDesk';            Arquivo = 'AnyDesk*.exe';            Registro = '^AnyDesk';                Tipo = 'AnyDesk' }
+    @{ Nome = 'LedVision';          Arquivo = 'LEDVISION*.exe';          Registro = '^LED ?VISION';            Tipo = 'NSIS' }
+    @{ Nome = 'NovaLCT';            Arquivo = 'NovaLCT*.exe';            Registro = '^NovaLCT';                Tipo = 'Inno' }
+    @{ Nome = 'LEDTool';            Arquivo = 'LEDTool*.exe';            Registro = '^LED ?Tool';              Tipo = 'NSIS' }
+    @{ Nome = 'LEDBatchController'; Arquivo = 'LEDBatchController*.exe'; Registro = '^LED ?Batch ?Controller'; Tipo = 'NSIS' }
+)
+
+function Get-ConfigLocal {
+    $cfg = [ordered]@{ AnyDeskSenha = ''; WifiNome = ''; WifiSenha = ''; PrefixoNome = ''; HoraAtualizacao = '00:30' }
+    $arq = Join-Path $script:Pasta 'config-local.json'
+    if (-not (Test-Path $arq)) {
+        Write-Log 'config-local.json nao esta no kit: sem senha do AnyDesk e sem Wi-Fi automatico.' 'warn'
+        return $cfg
+    }
+    try {
+        $j = Get-Content $arq -Raw -Encoding UTF8 | ConvertFrom-Json
+        foreach ($k in @($cfg.Keys)) {
+            $v = if ($j.PSObject.Properties[$k]) { "$($j.$k)".Trim() } else { '' }
+            # Valor de exemplo ("COLOQUE ...") conta como vazio
+            if ($v -and $v -notmatch '^COLOQUE') { $cfg[$k] = $v }
+        }
+        Write-Log 'Configuracao local (config-local.json) carregada.' 'ok'
+    } catch {
+        Write-Log "config-local.json com erro de formato: $($_.Exception.Message)" 'erro'
+    }
+    return $cfg
+}
+
+function Test-InternetRapido {
+    try { return [bool](Test-Connection -ComputerName '8.8.8.8' -Count 1 -Quiet -ErrorAction SilentlyContinue) } catch { return $false }
+}
+
+# Grava a rede Wi-Fi da empresa para todos os usuarios e conecta.
+function Invoke-ConectarWifi {
+    param([string]$Nome, [string]$Senha, [int]$EsperarSeg = 60)
+    if (-not $Nome) { Write-Log 'Wi-Fi nao configurado no config-local.json - pulando.' 'warn'; return $false }
+    Write-Log 'WI-FI DA EMPRESA' 'title'
+    if (Test-InternetRapido) { Write-Log 'Internet ja disponivel.' 'ok' }
+    try {
+        $esc  = [Security.SecurityElement]::Escape($Nome)
+        $hex  = -join ([Text.Encoding]::UTF8.GetBytes($Nome) | ForEach-Object { $_.ToString('X2') })
+        $seg  = if ($Senha) {
+            "<authEncryption><authentication>WPA2PSK</authentication><encryption>AES</encryption><useOneX>false</useOneX></authEncryption>" +
+            "<sharedKey><keyType>passPhrase</keyType><protected>false</protected><keyMaterial>$([Security.SecurityElement]::Escape($Senha))</keyMaterial></sharedKey>"
+        } else {
+            "<authEncryption><authentication>open</authentication><encryption>none</encryption><useOneX>false</useOneX></authEncryption>"
+        }
+        $xml = "<?xml version=`"1.0`"?><WLANProfile xmlns=`"http://www.microsoft.com/networking/WLAN/profile/v1`"><name>$esc</name>" +
+               "<SSIDConfig><SSID><hex>$hex</hex><name>$esc</name></SSID></SSIDConfig><connectionType>ESS</connectionType>" +
+               "<connectionMode>auto</connectionMode><MSM><security>$seg</security></MSM></WLANProfile>"
+        $tmp = Join-Path $env:TEMP 'globalled-wifi.xml'
+        [IO.File]::WriteAllText($tmp, $xml)
+        $saida = (netsh wlan add profile filename="$tmp" user=all 2>&1) -join ' '
+        Remove-Item $tmp -Force -ErrorAction SilentlyContinue   # o arquivo tinha a senha em texto
+        Write-Log "Rede `"$Nome`" gravada no Windows (conecta sozinha)." 'ok'
+        netsh wlan connect name="$Nome" 2>&1 | Out-Null
+        $fim = (Get-Date).AddSeconds($EsperarSeg)
+        while ((Get-Date) -lt $fim) {
+            if (Test-InternetRapido) { Write-Log "Conectado ao Wi-Fi `"$Nome`" com internet." 'ok'; return $true }
+            Start-Sleep -Seconds 3
+        }
+        Write-Log "Sem internet pelo Wi-Fi `"$Nome`" por enquanto ($saida)." 'warn'
+    } catch {
+        Write-Log "Falha ao configurar o Wi-Fi: $($_.Exception.Message)" 'warn'
+    }
+    return $false
+}
+
+# Fabricantes de driver que o Windows perguntaria "Deseja instalar este
+# software de dispositivo?" ficam pre-aprovados (pasta _sistema\certificados).
+function Import-CertificadosKit {
+    $dir = Join-Path $script:Pasta '_sistema\certificados'
+    foreach ($c in @(Get-ChildItem $dir -Filter *.cer -File -ErrorAction SilentlyContinue)) {
+        try {
+            $x  = New-Object Security.Cryptography.X509Certificates.X509Certificate2 $c.FullName
+            $st = New-Object Security.Cryptography.X509Certificates.X509Store 'TrustedPublisher', 'LocalMachine'
+            $st.Open('ReadWrite'); $st.Add($x); $st.Close()
+            Write-Log "Drivers de $((($x.Subject -split ',')[0]) -replace '^CN=','' -replace '"','') pre-aprovados." 'ok'
+        } catch {
+            Write-Log "Nao consegui importar $($c.Name): $($_.Exception.Message)" 'warn'
+        }
+    }
+}
+
+function Test-ProgramaNoRegistro {
+    param([string]$Regex)
+    $chaves = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+              'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*',
+              'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*'
+    return [bool](Get-ItemProperty $chaves -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match $Regex })
+}
+
+# Anota no log toda janela nova que aparece durante uma instalacao: e o que
+# diz, no teste, qual instalador ainda mostra tela e qual e.
+function Watch-JanelasNovas {
+    param([hashtable]$Vistas)
+    foreach ($p in @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle })) {
+        $k = "$($p.ProcessName)|$($p.MainWindowTitle)"
+        if (-not $Vistas.ContainsKey($k)) {
+            $Vistas[$k] = $true
+            if ($p.ProcessName -notmatch '^(explorer|powershell|conhost|ShellExperienceHost|SearchHost|StartMenuExperienceHost|TextInputHost|ApplicationFrameHost)$') {
+                Write-Log "   janela apareceu: [$($p.ProcessName)] $($p.MainWindowTitle)" 'info'
+            }
+        }
+    }
+}
+
+# Espera os processos que o instalador abriu por dentro (drivers, Visual C++,
+# WinPcap...) terminarem antes de passar para o proximo programa.
+function Wait-InstaladoresFilhos {
+    param([datetime]$Desde, [hashtable]$Vistas, [int]$MaxSeg = 600)
+    $fim = (Get-Date).AddSeconds($MaxSeg)
+    while ((Get-Date) -lt $fim) {
+        $filhos = @(Get-Process -ErrorAction SilentlyContinue | Where-Object {
+            $_.StartTime -gt $Desde -and
+            $_.ProcessName -match '(?i)setup|instal|dpinst|redist|pcap|driver|AppInstaller|PL-?2303|pnputil' -and
+            $_.ProcessName -notmatch '(?i)TiWorker|TrustedInstaller|DriverStore|msiexec'
+        })
+        if ($filhos.Count -eq 0) { return }
+        Watch-JanelasNovas $Vistas
+        Start-Sleep -Seconds 2
+    }
+    Write-Log '   ainda havia processos de instalacao rodando depois de 10 min.' 'warn'
+}
+
+function Install-AnyDeskAuto {
+    param([string]$Instalador, [string]$Senha)
+    $dest = Join-Path ${env:ProgramFiles(x86)} 'AnyDesk'
+    $exe  = Join-Path $dest 'AnyDesk.exe'
+    if (-not (Test-ProgramaNoRegistro '^AnyDesk')) {
+        $p = Start-Process -FilePath $Instalador -ArgumentList "--install `"$dest`" --start-with-win --create-shortcuts --create-desktop-icon --silent" -PassThru
+        if (-not $p.WaitForExit(300000)) { try { $p.Kill() } catch { }; return 'travou na instalacao' }
+        for ($i = 0; $i -lt 15 -and -not (Test-Path $exe); $i++) { Start-Sleep -Seconds 2 }
+    }
+    if (-not (Test-Path $exe)) { return 'AnyDesk.exe nao apareceu na pasta de programas' }
+    if (-not $Senha) { Write-Log '   Sem senha no config-local.json: acesso nao supervisionado NAO configurado.' 'warn'; return '' }
+
+    # A senha vai pela entrada padrao (como o "echo senha | AnyDesk.exe" do
+    # manual), nunca pela linha de comando nem em arquivo.
+    Start-Sleep -Seconds 5
+    foreach ($argSenha in @('--set-password _full_access', '--set-password')) {
+        try {
+            $psi = New-Object Diagnostics.ProcessStartInfo $exe, $argSenha
+            $psi.UseShellExecute = $false; $psi.RedirectStandardInput = $true; $psi.CreateNoWindow = $true
+            $pr = [Diagnostics.Process]::Start($psi)
+            $pr.StandardInput.WriteLine($Senha); $pr.StandardInput.Close()
+            [void]$pr.WaitForExit(30000)
+            if ($pr.ExitCode -eq 0) {
+                Write-Log "   Acesso nao supervisionado ligado ($(if ($argSenha -match 'full') { 'perfil Acesso integral' } else { 'perfil padrao' }))." 'ok'
+                return ''
+            }
+        } catch { }
+    }
+    return 'instalou, mas a senha de acesso nao supervisionado nao foi aceita'
+}
+
+function Get-AnyDeskId {
+    $exe = Join-Path ${env:ProgramFiles(x86)} 'AnyDesk\AnyDesk.exe'
+    if (-not (Test-Path $exe)) { return '' }
+    for ($i = 0; $i -lt 10; $i++) {
+        try {
+            $psi = New-Object Diagnostics.ProcessStartInfo $exe, '--get-id'
+            $psi.UseShellExecute = $false; $psi.RedirectStandardOutput = $true; $psi.CreateNoWindow = $true
+            $pr = [Diagnostics.Process]::Start($psi)
+            # Com tempo limite: sem o servico do AnyDesk no ar o --get-id nao responde
+            $leitura = $pr.StandardOutput.ReadToEndAsync()
+            if (-not $pr.WaitForExit(15000)) { try { $pr.Kill() } catch { } }
+            $id = if ($leitura.Wait(2000)) { "$($leitura.Result)".Trim() } else { '' }
+            if ($id -match '^\d{6,}$') { return $id }
+        } catch { }
+        Start-Sleep -Seconds 3
+    }
+    return ''
+}
+
+# Instala os programas da pasta Instaladores, um por vez, sem janela.
+# Devolve uma linha por programa: OK / JA INSTALADO / FALHOU / SEM INSTALADOR.
+function Invoke-InstalarProgramas {
+    param($Config)
+    Write-Log 'INSTALACAO DOS PROGRAMAS' 'title'
+    $pastaInst = Join-Path $script:Pasta 'Instaladores'
+    $resultado = New-Object System.Collections.ArrayList
+    $vistas = @{}
+    Watch-JanelasNovas $vistas | Out-Null   # o que ja estava aberto nao entra no relatorio
+
+    $assistente = Start-AceitadorDeJanelas
+    try {
+        foreach ($prog in $script:ProgramasAuto) {
+            $inst = Get-ChildItem $pastaInst -Filter $prog.Arquivo -File -ErrorAction SilentlyContinue |
+                    Where-Object { $_.FullName -notmatch '(?i)\\Prontos\\' } |
+                    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if (Test-ProgramaNoRegistro $prog.Registro) {
+                Write-Log "$($prog.Nome): ja instalado." 'ok'
+                if ($prog.Tipo -eq 'AnyDesk' -and $inst) { [void](Install-AnyDeskAuto -Instalador $inst.FullName -Senha $Config.AnyDeskSenha) }
+                [void]$resultado.Add([pscustomobject]@{ Programa = $prog.Nome; Status = 'JA INSTALADO'; Detalhe = '' })
+                continue
+            }
+            if (-not $inst) {
+                Write-Log "$($prog.Nome): instalador ($($prog.Arquivo)) nao esta na pasta Instaladores." 'warn'
+                [void]$resultado.Add([pscustomobject]@{ Programa = $prog.Nome; Status = 'SEM INSTALADOR'; Detalhe = '' })
+                continue
+            }
+
+            Write-Log "$($prog.Nome): instalando $($inst.Name)..." 'info'
+            try { Unblock-File $inst.FullName -ErrorAction SilentlyContinue } catch { }
+            $inicio = Get-Date
+            $erro = ''
+            if ($prog.Tipo -eq 'AnyDesk') {
+                $erro = Install-AnyDeskAuto -Instalador $inst.FullName -Senha $Config.AnyDeskSenha
+            } else {
+                $argsInst = if ($prog.Tipo -eq 'Inno') { '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' } else { '/S' }
+                $p = Start-Process -FilePath $inst.FullName -ArgumentList $argsInst -PassThru
+                $limite = (Get-Date).AddMinutes(20)
+                while (-not $p.HasExited -and (Get-Date) -lt $limite) { Watch-JanelasNovas $vistas; Start-Sleep -Seconds 2 }
+                if (-not $p.HasExited) {
+                    try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch { }
+                    $erro = 'instalador travou por 20 min e foi encerrado'
+                }
+                Wait-InstaladoresFilhos -Desde $inicio -Vistas $vistas
+            }
+            $min = [math]::Round(((Get-Date) - $inicio).TotalMinutes, 1)
+            if (-not $erro -and -not (Test-ProgramaNoRegistro $prog.Registro)) { $erro = 'terminou, mas nao aparece como instalado no Windows' }
+            if ($erro) {
+                Write-Log "$($prog.Nome): FALHOU - $erro ($min min)." 'erro'
+                [void]$resultado.Add([pscustomobject]@{ Programa = $prog.Nome; Status = 'FALHOU'; Detalhe = $erro })
+            } else {
+                Write-Log "$($prog.Nome): instalado em $min min." 'ok'
+                [void]$resultado.Add([pscustomobject]@{ Programa = $prog.Nome; Status = 'OK'; Detalhe = "$min min" })
+            }
+        }
+    } finally {
+        Stop-AceitadorDeJanelas $assistente
+    }
+
+    # Reforco dos drivers da ColorLight pela instalacao nativa do Windows
+    # (sao certificados pela Microsoft: nao aparece pergunta nenhuma).
+    $drv = Join-Path ${env:ProgramFiles(x86)} 'ColorLight\driver'
+    foreach ($inf in @(Get-ChildItem $drv -Recurse -Filter *.inf -File -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match '\\64OS\\' })) {
+        & pnputil.exe /add-driver "$($inf.FullName)" /install 2>&1 | Out-Null
+        Write-Log "   Driver ColorLight registrado: $($inf.Name)" 'ok'
+    }
+    return $resultado
+}
+
+# Opcoes do LedVision iguais ao notebook modelo: inicia com o Windows,
+# exibe o programa sozinho, comeca minimizado e em portugues.
+function Set-LedVisionAuto {
+    Write-Log 'LEDVISION: INICIALIZACAO AUTOMATICA' 'title'
+    $exe = Join-Path ${env:ProgramFiles(x86)} 'ColorLight\LEDVISION.exe'
+    if (-not (Test-Path $exe)) { Write-Log 'LEDVISION.exe nao encontrado - opcoes nao aplicadas.' 'warn'; return $false }
+    try {
+        # Fechado: aberto, ele regrava o arquivo por cima ao sair
+        Get-Process LEDVISION -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        $dir = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Colorlight\LEDVISION\LEDVISION_Config'
+        $cfg = Join-Path $dir 'LEDVISION.cfg'
+        if (-not (Test-Path $cfg)) {
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+            Copy-Item (Join-Path (Split-Path $exe) 'LEDVISION.cfg') $cfg -Force
+        }
+        # PreserveWhitespace: so os 4 campos mudam, o resto do arquivo fica identico
+        $x = New-Object Xml.XmlDocument
+        $x.PreserveWhitespace = $true
+        $x.Load($cfg)
+        $valores = [ordered]@{ '/sysConfig/Language' = 'Portuguese'; '//IsAppAutoRun' = '1'; '//IsAutoPlay' = '1'; '//IsStartMin' = '1' }
+        foreach ($xp in $valores.Keys) {
+            $nos = $x.SelectNodes($xp)
+            if ($nos.Count -eq 0) { Write-Log "   campo $xp nao existe nesta versao do LedVision." 'warn' }
+            foreach ($n in $nos) { $n.InnerText = $valores[$xp] }
+        }
+        $ws = New-Object Xml.XmlWriterSettings
+        $ws.Encoding = New-Object Text.UTF8Encoding($false)
+        $w = [Xml.XmlWriter]::Create($cfg, $ws); $x.Save($w); $w.Close()
+        Set-Reg 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' 'LEDVISION' $exe 'String'
+        Write-Log 'LedVision: inicia com o Windows, exibe o programa, minimizado e em portugues.' 'ok'
+        return $true
+    } catch {
+        Write-Log "Falha nas opcoes do LedVision: $($_.Exception.Message)" 'erro'
+        return $false
+    }
+}
+
+function Set-EtapaAutomatica {
+    param([string]$Etapa)
+    $ps1  = Join-Path $script:Pasta 'ConfiguradorPainelLED.ps1'
+    # Grupo Administradores pelo SID: funciona com Windows em qualquer idioma.
+    # Tarefa de grupo no logon roda na sessao de quem entrou, com a janela visivel.
+    $adm  = (New-Object Security.Principal.SecurityIdentifier 'S-1-5-32-544').Translate([Security.Principal.NTAccount]).Value
+    $acao = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -STA -File `"$ps1`" -Automatico -Etapa $Etapa"
+    $gat  = New-ScheduledTaskTrigger -AtLogOn
+    $pri  = New-ScheduledTaskPrincipal -GroupId $adm -RunLevel Highest
+    $conf = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 4)
+    Register-ScheduledTask -TaskName $script:TarefaAuto -Action $acao -Trigger $gat -Principal $pri -Settings $conf -Force -ErrorAction Stop | Out-Null
+    Write-Log "Proxima etapa ($Etapa) agendada para o proximo logon." 'ok'
+}
+
+function Remove-EtapaAutomatica {
+    Unregister-ScheduledTask -TaskName $script:TarefaAuto -Confirm:$false -ErrorAction SilentlyContinue
+}
+
+function Get-DadosNotebook {
+    $cs   = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+    $bios = Get-CimInstance Win32_BIOS -ErrorAction SilentlyContinue
+    [ordered]@{
+        Fabricante = "$($cs.Manufacturer)".Trim()
+        Modelo     = "$($cs.Model)".Trim()
+        Serie      = "$($bios.SerialNumber)".Trim()
+    }
+}
+
+# Uma linha por notebook, separada por ";" (abre direto no Excel em portugues).
+# Vai para C:\ProgramData\GlobalLED e para a pasta Inventario de qualquer
+# pendrive do kit que estiver plugado.
+function Save-Inventario {
+    param($Linha)
+    $destinos = @(Join-Path $script:PastaDados 'inventario.csv')
+    foreach ($d in @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=2' -ErrorAction SilentlyContinue)) {
+        if (Test-Path "$($d.DeviceID)\ConfiguradorPainelLED.ps1") { $destinos += "$($d.DeviceID)\Inventario\inventario.csv" }
+    }
+    foreach ($arq in $destinos) {
+        try {
+            $pasta = Split-Path $arq
+            if (-not (Test-Path $pasta)) { New-Item -ItemType Directory -Path $pasta -Force | Out-Null }
+            [pscustomobject]$Linha | Export-Csv -Path $arq -Append -NoTypeInformation -Delimiter ';' -Encoding UTF8 -Force
+            Write-Log "Inventario gravado em $arq" 'ok'
+        } catch {
+            Write-Log "Nao consegui gravar o inventario em ${arq}: $($_.Exception.Message)" 'warn'
+        }
+    }
+}
+
+# Tela cheia verde (CONCLUIDO) ou vermelha (VERIFICAR), para ver de longe
+# quem terminou. Fecha com um clique ou qualquer tecla.
+function Show-TelaFinal {
+    param([bool]$Ok, [string[]]$Linhas)
+    try {
+        $w = New-Object Windows.Window
+        $w.WindowStyle = 'None'; $w.WindowState = 'Maximized'; $w.Topmost = $true; $w.ResizeMode = 'NoResize'
+        $w.Background = New-Object Windows.Media.SolidColorBrush ([Windows.Media.ColorConverter]::ConvertFromString($(if ($Ok) { '#0F7B3F' } else { '#B3261E' })))
+        $sp = New-Object Windows.Controls.StackPanel
+        $sp.VerticalAlignment = 'Center'; $sp.HorizontalAlignment = 'Center'
+        $t = New-Object Windows.Controls.TextBlock
+        $t.Text = $(if ($Ok) { 'CONCLUIDO' } else { 'VERIFICAR' }); $t.FontSize = 120; $t.FontWeight = 'Bold'
+        $t.Foreground = 'White'; $t.HorizontalAlignment = 'Center'
+        [void]$sp.Children.Add($t)
+        foreach ($l in $Linhas) {
+            $d = New-Object Windows.Controls.TextBlock
+            $d.Text = $l; $d.FontSize = 28; $d.Foreground = 'White'; $d.HorizontalAlignment = 'Center'; $d.Margin = '0,8,0,0'
+            [void]$sp.Children.Add($d)
+        }
+        $r = New-Object Windows.Controls.TextBlock
+        $r.Text = 'Clique ou aperte qualquer tecla para fechar'; $r.FontSize = 18; $r.Foreground = '#DDFFFFFF'
+        $r.HorizontalAlignment = 'Center'; $r.Margin = '0,40,0,0'
+        [void]$sp.Children.Add($r)
+        $w.Content = $sp
+        $w.Add_MouseDown({ $w.Close() }); $w.Add_KeyDown({ $w.Close() })
+        [void]$w.ShowDialog()
+    } catch {
+        Write-Log "Nao consegui mostrar a tela final: $($_.Exception.Message)" 'warn'
+    }
+}
+
+function Invoke-ModoAutomatico {
+    param([string]$Etapa)
+    if (-not (Test-Path "$script:PastaDados\logs")) { New-Item -ItemType Directory -Path "$script:PastaDados\logs" -Force | Out-Null }
+    try { Start-Transcript -Path ("$script:PastaDados\logs\auto-{0}-{1:yyyyMMdd-HHmmss}.log" -f $Etapa, (Get-Date)) -Force | Out-Null } catch { }
+    try { $Host.UI.RawUI.WindowTitle = 'GLOBAL LED - CONFIGURANDO SOZINHO, NAO MEXA' } catch { }
+
+    # Estado sem fila: o log vai para a tela do console e para o arquivo
+    $global:Estado = [hashtable]::Synchronized(@{ Fila = $null; Falhas = 0; Final = ''; Texto = ''; Passo = 0; Total = 0; Grupo = '' })
+    $global:Opcoes = @{ ReinicioAuto = $false; ReinicioSemanal = $true; CopiarInst = $false }
+    Write-Log "MODO AUTOMATICO v$script:Versao - etapa $Etapa" 'title'
+    $cfg = Get-ConfigLocal
+
+    switch ($Etapa) {
+        'Preparar' {
+            [void](Invoke-ConectarWifi -Nome $cfg.WifiNome -Senha $cfg.WifiSenha -EsperarSeg 20)
+            if (-not (Test-Path $script:ChaveAuto)) { New-Item -Path $script:ChaveAuto -Force | Out-Null }
+            Set-ItemProperty $script:ChaveAuto 'Tentativas' 0 -Type DWord
+            Set-EtapaAutomatica 'Configurar'
+        }
+
+        'Configurar' {
+            if (-not (Test-Path $script:ChaveAuto)) { New-Item -Path $script:ChaveAuto -Force | Out-Null }
+            $tent = [int](Get-ItemProperty $script:ChaveAuto -Name Tentativas -ErrorAction SilentlyContinue).Tentativas + 1
+            Set-ItemProperty $script:ChaveAuto 'Tentativas' $tent -Type DWord
+            if ($tent -gt 3) {
+                # Protecao contra looping: algo reinicia o notebook no meio da etapa
+                Remove-EtapaAutomatica
+                Write-Log 'A configuracao automatica ja comecou 3 vezes sem terminar. Parando aqui.' 'erro'
+                Show-TelaFinal -Ok $false -Linhas @('A configuracao automatica parou depois de 3 tentativas.', "Veja o log em $script:PastaDados\logs")
+                break
+            }
+
+            [void](Invoke-ConectarWifi -Nome $cfg.WifiNome -Senha $cfg.WifiSenha)
+            Import-CertificadosKit
+            Invoke-DesarmarAntivirus
+            Invoke-PreCheck | Out-Null
+            Invoke-DesligarDefender
+            Invoke-DesligarControleDeApps
+            Open-HivesUsuario
+            Invoke-Energia
+            Invoke-Notificacoes
+            Invoke-WindowsUpdate -HoraInicio $cfg.HoraAtualizacao -ReiniciarAposAtualizar $false
+            Invoke-ReinicioSemanal -Ligar $true
+            Invoke-RemoverOneDrive
+            Invoke-Extras
+            Invoke-Aparencia
+            Invoke-LimpezaFabrica -Selecao @() -IncluirMcAfee $true
+
+            $programas = @(Invoke-InstalarProgramas -Config $cfg)
+            [void](Set-LedVisionAuto)
+            if (@($programas | Where-Object { $_.Status -in 'FALHOU','SEM INSTALADOR' }).Count -gt 0) {
+                # O que nao entrou sozinho fica na area de trabalho para instalar a mao
+                $global:Opcoes.CopiarInst = $true
+                Copy-InstaladoresParaDesktop
+            }
+            Invoke-Interface
+            Close-HivesUsuario
+
+            if ($cfg.PrefixoNome) {
+                $serie = (Get-DadosNotebook).Serie -replace '[^A-Za-z0-9]', ''
+                $novo  = (($cfg.PrefixoNome -replace '[^A-Za-z0-9-]', '') + $serie)
+                if ($novo.Length -gt 15) { $novo = $novo.Substring(0, 15) }
+                if ($novo -and $novo -ne $env:COMPUTERNAME) {
+                    try { Rename-Computer -NewName $novo -Force -ErrorAction Stop; Write-Log "Nome do notebook: $novo (vale depois de reiniciar)." 'ok' }
+                    catch { Write-Log "Nao consegui renomear para ${novo}: $($_.Exception.Message)" 'warn' }
+                }
+            }
+
+            $programas | ConvertTo-Json | Set-Content (Join-Path $script:PastaDados 'programas.json') -Encoding UTF8
+            Set-EtapaAutomatica 'Final'
+            Write-Log 'Reiniciando em 10 segundos para concluir...' 'ok'
+            try { Stop-Transcript | Out-Null } catch { }
+            & shutdown.exe /r /t 10 /d p:4:1 | Out-Null
+        }
+
+        'Final' {
+            Write-Log 'Aguardando o Windows terminar de abrir os programas...' 'info'
+            Start-Sleep -Seconds 60
+            [void](Invoke-ConectarWifi -Nome $cfg.WifiNome -Senha $cfg.WifiSenha -EsperarSeg 30)
+            $global:Opcoes.CopiarInst = Test-Path (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Instalar Programas LED')
+            $falhasVal = [int](Invoke-Validacao)
+
+            $programas = @()
+            try { $programas = @(Get-Content (Join-Path $script:PastaDados 'programas.json') -Raw -Encoding UTF8 | ConvertFrom-Json) } catch { }
+            $ledAberto = [bool](Get-Process LEDVISION -ErrorAction SilentlyContinue)
+            Write-Log "LedVision abriu sozinho depois do reinicio: $(if ($ledAberto) { 'SIM' } else { 'NAO' })" $(if ($ledAberto) { 'ok' } else { 'erro' })
+            $anyId = Get-AnyDeskId
+            Write-Log "ID do AnyDesk: $(if ($anyId) { $anyId } else { 'nao encontrado' })" $(if ($anyId) { 'ok' } else { 'warn' })
+
+            $ruins = @($programas | Where-Object { $_.Status -in 'FALHOU','SEM INSTALADOR' })
+            $ok = ($ruins.Count -eq 0) -and $ledAberto -and $anyId
+            $dados = Get-DadosNotebook
+            $linha = [ordered]@{
+                Data       = (Get-Date -Format 'dd/MM/yyyy HH:mm')
+                Nome       = $env:COMPUTERNAME
+                Fabricante = $dados.Fabricante
+                Modelo     = $dados.Modelo
+                Serie      = $dados.Serie
+                AnyDeskID  = $anyId
+                Resultado  = $(if ($ok) { 'CONCLUIDO' } else { 'VERIFICAR' })
+                ItensComAtencao = $falhasVal
+                Kit        = $script:Versao
+            }
+            foreach ($p in $programas) { $linha[$p.Programa] = $p.Status }
+            Save-Inventario $linha
+
+            # Fim do modo automatico: tira a tarefa e apaga as senhas do disco
+            Remove-EtapaAutomatica
+            Remove-Item (Join-Path $script:Pasta 'config-local.json') -Force -ErrorAction SilentlyContinue
+            Remove-Item $script:ChaveAuto -Recurse -Force -ErrorAction SilentlyContinue
+
+            $linhas = @("$env:COMPUTERNAME   |   serie $($dados.Serie)", "AnyDesk: $(if ($anyId) { $anyId } else { 'NAO ENCONTRADO' })")
+            foreach ($p in $programas) { $linhas += "$($p.Programa): $($p.Status)" }
+            if (-not $ledAberto) { $linhas += 'LedVision NAO abriu sozinho depois do reinicio' }
+            if ($falhasVal -gt 0) { $linhas += "$falhasVal item(ns) da validacao com atencao (veja o relatorio)" }
+            try { Stop-Transcript | Out-Null } catch { }
+            Show-TelaFinal -Ok $ok -Linhas $linhas
+        }
+    }
+    try { Stop-Transcript | Out-Null } catch { }
+}
+
+
 # ##### FIM DAS FUNCOES #####
 # Tudo acima desta linha e reaproveitado pela thread paralela que executa as
 # tarefas (ver Start-Tarefa). Nao mova esta marca.
+
+# Modo automatico: roda a etapa e sai, sem abrir a interface.
+if ($Automatico) {
+    Invoke-ModoAutomatico -Etapa $Etapa
+    exit
+}
 
 # ---------- INTERFACE (XAML) ----------
 [xml]$xaml = @'

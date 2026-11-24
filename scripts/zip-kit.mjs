@@ -13,12 +13,15 @@ const OUT_DIR = "public/downloads";
 
 const raiz = [
   "INICIAR.cmd",
+  "GO.cmd",
   "ConfiguradorPainelLED.ps1",
   "Wallpaper.jpg",
   "LEIA-ME.txt",
+  // So o exemplo: o config-local.json com as senhas nunca entra no kit
+  "config-local.exemplo.json",
 ];
 
-const pastasVazias = ["Instaladores", "Backups"];
+const pastasVazias = ["Instaladores", "Backups", "Inventario"];
 const pastasComArquivos = ["_sistema"];
 
 async function* walk(dir, base = "") {

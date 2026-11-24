@@ -1,7 +1,27 @@
 ====================================================
  GLOBAL LED EXPERIENCE - CONFIGURADOR DE NOTEBOOK
- Versao 3.7.0
+ Versao 3.8.0
 ====================================================
+
+MODO AUTOMATICO - SEM CLIQUES (v3.8.0, EM TESTE)
+ Montar o pendrive (uma vez):
+  - Coloque na pasta Instaladores: AnyDesk, LEDVISION, NovaLCT, LEDTool
+    e LEDBatchController (os .exe de sempre).
+  - Copie config-local.exemplo.json como config-local.json na raiz do
+    pendrive e preencha a senha do AnyDesk e o Wi-Fi da empresa.
+    Esse arquivo tem senhas: nunca envie para ninguem.
+ Em cada notebook:
+  - Notebook novo: na tela inicial do Windows aperte SHIFT+F10, digite
+    D:\GO e ENTER (troque D pela letra do pendrive se for outra).
+  - Notebook ja na area de trabalho: dois cliques em GO.cmd.
+  - Quando aparecer "PODE TIRAR O PENDRIVE", leve para o proximo.
+ O notebook pula a configuracao inicial, aplica tudo, remove os
+ programas de fabrica, instala os 5 programas (drivers inclusive),
+ configura o LedVision e o AnyDesk, reinicia e mostra uma tela
+ VERDE (CONCLUIDO) ou VERMELHA (VERIFICAR) com o ID do AnyDesk.
+ Inventario: C:\ProgramData\GlobalLED\inventario.csv (e na pasta
+ Inventario do pendrive, se ele estiver plugado no final).
+ Logs: C:\ProgramData\GlobalLED\logs
 
 COMO USAR (tecnico em campo)
 IMPORTANTE: o Windows 11 bloqueia a execucao automatica de pendrives USB.

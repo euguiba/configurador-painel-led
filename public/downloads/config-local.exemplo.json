@@ -1,0 +1,8 @@
+{
+  "_LEIA": "Copie este arquivo como config-local.json na RAIZ do pendrive e preencha. Ele tem senhas: nao envie para ninguem. O modo automatico apaga a copia do notebook quando termina.",
+  "AnyDeskSenha": "COLOQUE AQUI A SENHA DO ACESSO NAO SUPERVISIONADO",
+  "WifiNome": "COLOQUE AQUI O NOME DA REDE WI-FI",
+  "WifiSenha": "COLOQUE AQUI A SENHA DO WI-FI",
+  "PrefixoNome": "",
+  "HoraAtualizacao": "00:30"
+}
