@@ -16,7 +16,8 @@
         "Tela final VERDE (concluido) ou VERMELHA (verificar) e inventario em CSV com serie e ID do AnyDesk",
         "Opcao 4 no INICIAR.cmd para o modo automatico",
         "Correcao do 1o teste: a tela inicial do Windows e detectada por varios sinais (conta do sistema, defaultuser0, OOBE); a configuracao so roda logada na conta do notebook",
-        "Correcoes do 2o teste: LedVision abre com o Windows como administrador (tarefa no logon) e as opcoes sao gravadas mesmo antes da 1a abertura; NovaLCT conferido pelo arquivo do programa e instalado na pasta da conta Global; senha do AnyDesk confirmada no log; inventario com o resultado de cada programa; conferencia de energia correta no Windows em portugues; novo DIAGNOSTICO.cmd"
+        "Correcoes do 2o teste: LedVision abre com o Windows como administrador (tarefa no logon) e as opcoes sao gravadas mesmo antes da 1a abertura; NovaLCT conferido pelo arquivo do programa e instalado na pasta da conta Global; senha do AnyDesk confirmada no log; inventario com o resultado de cada programa; conferencia de energia correta no Windows em portugues; novo DIAGNOSTICO.cmd",
+        "Correcoes do 3o teste: LEDTool e LEDBatchController instalados direto pelos arquivos de dentro do instalador (a tela deles ignorava o modo silencioso), com Visual C++, drivers, WinPcap, atalho e registro no Windows; assistente de driver do CP210x (NovaLCT) que ficava parado 15 min agora e fechado e o driver instalado direto; 7-Zip incluido no kit"
       ]
     },
     {
@@ -465,6 +466,7 @@
     "Tela final VERDE (concluido) ou VERMELHA (verificar) e inventario em CSV com serie e ID do AnyDesk",
     "Opcao 4 no INICIAR.cmd para o modo automatico",
     "Correcao do 1o teste: a tela inicial do Windows e detectada por varios sinais (conta do sistema, defaultuser0, OOBE); a configuracao so roda logada na conta do notebook",
-    "Correcoes do 2o teste: LedVision abre com o Windows como administrador (tarefa no logon) e as opcoes sao gravadas mesmo antes da 1a abertura; NovaLCT conferido pelo arquivo do programa e instalado na pasta da conta Global; senha do AnyDesk confirmada no log; inventario com o resultado de cada programa; conferencia de energia correta no Windows em portugues; novo DIAGNOSTICO.cmd"
+    "Correcoes do 2o teste: LedVision abre com o Windows como administrador (tarefa no logon) e as opcoes sao gravadas mesmo antes da 1a abertura; NovaLCT conferido pelo arquivo do programa e instalado na pasta da conta Global; senha do AnyDesk confirmada no log; inventario com o resultado de cada programa; conferencia de energia correta no Windows em portugues; novo DIAGNOSTICO.cmd",
+    "Correcoes do 3o teste: LEDTool e LEDBatchController instalados direto pelos arquivos de dentro do instalador (a tela deles ignorava o modo silencioso), com Visual C++, drivers, WinPcap, atalho e registro no Windows; assistente de driver do CP210x (NovaLCT) que ficava parado 15 min agora e fechado e o driver instalado direto; 7-Zip incluido no kit"
   ]
 }

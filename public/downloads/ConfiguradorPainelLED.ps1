@@ -1922,10 +1922,23 @@ $script:ProgramasAuto = @(
        Exe = { Join-Path ${env:ProgramFiles(x86)} 'ColorLight\LEDVISION.exe' } }
     @{ Nome = 'NovaLCT';            Arquivo = 'NovaLCT*.exe';            Registro = '^NovaLCT';                Tipo = 'Inno'
        Exe = { Join-Path $env:APPDATA 'Nova Star\NovaLCT\Bin\NovaLCT.exe' }; Pasta = { Join-Path $env:APPDATA 'Nova Star\NovaLCT' } }
-    @{ Nome = 'LEDTool';            Arquivo = 'LEDTool*.exe';            Registro = '^LED ?Tool';              Tipo = 'NSIS'
-       Exe = { Join-Path $env:ProgramFiles 'LEDTool\client\LED Tool.exe' } }
-    @{ Nome = 'LEDBatchController'; Arquivo = 'LEDBatchController*.exe'; Registro = '^LED ?Batch ?Controller'; Tipo = 'NSIS'
-       Exe = { Join-Path ${env:ProgramFiles(x86)} 'LEDBatchController\LEDBatchController\LEDBatchController.exe' } }
+    # LEDTool e LEDBatchController (Hikvision): o instalador tem tela propria e
+    # ignora o modo silencioso (3o teste: LEDTool fechou em 6 s sem instalar e
+    # o LEDBatch parou esperando clique). Tipo Extrair: o kit tira os arquivos
+    # de dentro do instalador com o 7-Zip e faz ele mesmo o que o instalador faria.
+    @{ Nome = 'LEDTool';            Arquivo = 'LEDTool*.exe';            Registro = '^LED ?Tool';              Tipo = 'Extrair'
+       Exe = { Join-Path $env:ProgramFiles 'LEDTool\client\LED Tool.exe' }
+       Destino = { Join-Path $env:ProgramFiles 'LEDTool\client' }
+       Pacote = 'client\app.7z'; Extras = @('$PLUGINSDIR\Drivers\*', '$PLUGINSDIR\WinPcap.exe')
+       Drivers = '$PLUGINSDIR\Drivers'; WinPcap = '$PLUGINSDIR\WinPcap.exe'
+       Atalho = 'LED Tool'; Chave = 'LED Tool'; NomeWindows = 'LED Tool' }
+    @{ Nome = 'LEDBatchController'; Arquivo = 'LEDBatchController*.exe'; Registro = '^LED ?Batch ?Controller'; Tipo = 'Extrair'
+       Exe = { Join-Path ${env:ProgramFiles(x86)} 'LEDBatchController\LEDBatchController\LEDBatchController.exe' }
+       Destino = { Join-Path ${env:ProgramFiles(x86)} 'LEDBatchController\LEDBatchController' }
+       Pacote = '$PLUGINSDIR\Tools\Tools.zip'; Extras = @('$PLUGINSDIR\RunTimeExe\vc_redist.x64.exe', '$PLUGINSDIR\RunTimeExe\vc_redist.x86.exe')
+       VcRedist = @('$PLUGINSDIR\RunTimeExe\vc_redist.x64.exe', '$PLUGINSDIR\RunTimeExe\vc_redist.x86.exe')
+       WinPcap = 'LedPro\wincap\WinPcap_4_1_3.exe'
+       Atalho = 'LEDBatchController'; Chave = '{08DF5887-5EDC-4867-A7A3-01AF9756BA4D}'; NomeWindows = 'LEDBatchController' }
 )
 
 function Test-ProgramaPronto {
@@ -2039,6 +2052,138 @@ function Watch-JanelasNovas {
             }
         }
     }
+    Resolve-AssistentesDeDriver $Vistas
+}
+
+# Assistentes de driver que abrem tela mesmo com o instalador em modo
+# silencioso. No 3o teste o do CP210x (dentro do NovaLCT) ficou 15 min parado.
+# Depois de 20 s aberto: o kit fecha o assistente e instala os drivers da
+# mesma pasta direto pelo Windows (pnputil), sem nenhuma tela.
+function Resolve-AssistentesDeDriver {
+    param([hashtable]$Vistas)
+    if (-not $script:InicioInstalacoes) { return }
+    $presos = @(Get-Process -ErrorAction SilentlyContinue | Where-Object {
+        $_.ProcessName -match '(?i)^(CP210x|dpinst)' -and $_.StartTime -gt $script:InicioInstalacoes -and
+        ((Get-Date) - $_.StartTime).TotalSeconds -gt 20 })
+    foreach ($p in $presos) {
+        $k = "drv|$($p.Id)"
+        if ($Vistas.ContainsKey($k)) { continue }
+        $Vistas[$k] = $true
+        $pasta = $null
+        try { $pasta = Split-Path -Parent $p.Path } catch { }
+        try { $p.Kill() } catch { }
+        $infs = if ($pasta -and (Test-Path $pasta)) { @(Get-ChildItem $pasta -Recurse -Filter *.inf -File -ErrorAction SilentlyContinue) } else { @() }
+        foreach ($inf in $infs) { & pnputil.exe /add-driver "$($inf.FullName)" /install 2>&1 | Out-Null }
+        Write-Log "   $($p.ProcessName) parou esperando clique: fechado, $($infs.Count) driver(s) instalado(s) direto pelo Windows ($pasta)." 'warn'
+    }
+}
+
+function Get-7Zip {
+    foreach ($z in (Join-Path $script:Pasta '_sistema\7zip\7z.exe'), "$env:ProgramFiles\7-Zip\7z.exe", "${env:ProgramFiles(x86)}\7-Zip\7z.exe") {
+        if (Test-Path $z) { return $z }
+    }
+    return $null
+}
+
+# WinPcap: driver de rede que os programas da Hikvision usam para achar as
+# placas pelo cabo. A tela dele e a padrao do Windows: o aceitador clica.
+function Install-WinPcapAuto {
+    param([string]$Instalador, [hashtable]$Vistas)
+    if (-not (Get-Service npf -ErrorAction SilentlyContinue)) {
+        if (-not $Instalador -or -not (Test-Path $Instalador)) { return 'instalador do WinPcap nao encontrado' }
+        Write-Log '   Instalando o WinPcap (driver de rede das placas)...' 'info'
+        $p = Start-Process -FilePath $Instalador -PassThru
+        $lim = (Get-Date).AddMinutes(5)
+        while (-not $p.HasExited -and (Get-Date) -lt $lim) { Watch-JanelasNovas $Vistas; Start-Sleep -Seconds 2 }
+        if (-not $p.HasExited) { try { $p.Kill() } catch { } }
+        if (-not (Get-Service npf -ErrorAction SilentlyContinue)) { return 'WinPcap nao ficou instalado (a tela dele nao foi concluida)' }
+    }
+    # O aceitador desmarca "iniciar automaticamente" (regra geral): liga aqui
+    & sc.exe config npf start= auto 2>&1 | Out-Null
+    try { Start-Service npf -ErrorAction Stop } catch { }
+    $s = Get-Service npf -ErrorAction SilentlyContinue
+    Write-Log "   WinPcap instalado (driver $($s.Status), inicia com o Windows)." 'ok'
+    return ''
+}
+
+# Instala um programa tirando os arquivos de dentro do instalador (7-Zip) e
+# fazendo o resto que o instalador faria: Visual C++, drivers, WinPcap, atalho
+# e o registro em "Adicionar/remover programas". Devolve '' ou o erro.
+function Install-PorExtracao {
+    param($Prog, [string]$Instalador, [hashtable]$Vistas)
+    $z = Get-7Zip
+    if (-not $z) { return 'falta o 7-Zip do kit (_sistema\7zip)' }
+    $tmp = Join-Path $env:TEMP ('GlobalLED-' + $Prog.Nome)
+    $destino = & $Prog.Destino
+    $exe = & $Prog.Exe
+    try {
+        Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Path $tmp -Force | Out-Null
+        $itens = @($Prog.Pacote) + @($Prog.Extras | Where-Object { $_ })
+        & $z x $Instalador "-o$tmp" -y @itens 2>&1 | Out-Null
+        if ($LASTEXITCODE -gt 1) { return "7-Zip nao abriu o instalador (codigo $LASTEXITCODE)" }
+        $pacote = Join-Path $tmp $Prog.Pacote
+        if (-not (Test-Path -LiteralPath $pacote)) { return "o pacote $($Prog.Pacote) nao esta dentro do instalador" }
+
+        # Programa
+        Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($destino, [StringComparison]::OrdinalIgnoreCase) } |
+            Stop-Process -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Path $destino -Force | Out-Null
+        # O .zip da Hikvision grava os nomes em chines como UTF-8 sem avisar:
+        # sem -mcp=65001 as pastas de configuracao saem com o nome embaralhado
+        $cp = @(if ($pacote -match '\.zip$') { '-mcp=65001' })
+        & $z x $pacote "-o$destino" -y @cp 2>&1 | Out-Null
+        if ($LASTEXITCODE -gt 1) { return "erro ao copiar os arquivos do programa (7-Zip codigo $LASTEXITCODE)" }
+        if (-not (Test-Path -LiteralPath $exe)) { return "o programa nao apareceu em $exe" }
+        Write-Log "   Arquivos do programa copiados para $destino" 'ok'
+
+        # Visual C++ que o instalador traz (modo silencioso oficial da Microsoft)
+        foreach ($vc in @($Prog.VcRedist | Where-Object { $_ })) {
+            $f = Join-Path $tmp $vc
+            if (-not (Test-Path -LiteralPath $f)) { continue }
+            $p = Start-Process -FilePath $f -ArgumentList '/install /quiet /norestart' -PassThru
+            if (-not $p.WaitForExit(300000)) { try { $p.Kill() } catch { } }
+            Write-Log "   $(Split-Path $vc -Leaf): codigo $($p.ExitCode) (0, 1638 e 3010 = ok)" 'info'
+        }
+
+        # Drivers USB (assinados; o certificado da Konica ja foi pre-aprovado)
+        if ($Prog.Drivers) {
+            foreach ($inf in @(Get-ChildItem (Join-Path $tmp $Prog.Drivers) -Recurse -Filter *.inf -File -ErrorAction SilentlyContinue)) {
+                $saida = & pnputil.exe /add-driver "$($inf.FullName)" /install 2>&1
+                Write-Log "   Driver $($inf.Name): $(if ($LASTEXITCODE -in 0, 259, 3010) { 'registrado' } else { "codigo $LASTEXITCODE" })" 'info'
+            }
+        }
+
+        # WinPcap: pode vir solto no instalador ou dentro da pasta do programa
+        if ($Prog.WinPcap) {
+            $w = @((Join-Path $tmp $Prog.WinPcap), (Join-Path $destino $Prog.WinPcap)) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+            $e = Install-WinPcapAuto -Instalador $w -Vistas $Vistas
+            if ($e) { Write-Log "   $e" 'warn' }
+        }
+
+        # Atalhos (area de trabalho de todos e menu Iniciar)
+        $ws = New-Object -ComObject WScript.Shell
+        foreach ($pastaLnk in "$env:PUBLIC\Desktop", "$env:ProgramData\Microsoft\Windows\Start Menu\Programs") {
+            $l = $ws.CreateShortcut((Join-Path $pastaLnk "$($Prog.Atalho).lnk"))
+            $l.TargetPath = $exe; $l.WorkingDirectory = Split-Path -Parent $exe; $l.IconLocation = "$exe,0"; $l.Save()
+        }
+
+        # Registro em "Adicionar/remover programas" (e o que o kit confere depois)
+        $chave = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\$($Prog.Chave)"
+        New-Item -Path $chave -Force | Out-Null
+        $versao = (Get-Item -LiteralPath $Instalador).VersionInfo.ProductVersion
+        if (-not $versao) { $versao = (Get-Item -LiteralPath $exe).VersionInfo.ProductVersion }
+        $remover = "cmd.exe /c rd /s /q `"$destino`" & del /q `"$env:PUBLIC\Desktop\$($Prog.Atalho).lnk`" & reg delete `"HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\$($Prog.Chave)`" /f"
+        $valores = [ordered]@{ DisplayName = $Prog.NomeWindows; DisplayVersion = "$versao"; Publisher = 'Hangzhou Hikvision Digital Technology Co., Ltd.'
+                               InstallLocation = $destino; DisplayIcon = $exe; UninstallString = $remover; Comments = 'Instalado pelo kit Global LED' }
+        foreach ($n in $valores.Keys) { New-ItemProperty -Path $chave -Name $n -Value $valores[$n] -PropertyType String -Force | Out-Null }
+        foreach ($n in 'NoModify', 'NoRepair') { New-ItemProperty -Path $chave -Name $n -Value 1 -PropertyType DWord -Force | Out-Null }
+        return ''
+    } catch {
+        return "erro: $($_.Exception.Message)"
+    } finally {
+        Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # Espera os processos que o instalador abriu por dentro (drivers, Visual C++,
@@ -2130,7 +2275,9 @@ function Invoke-InstalarProgramas {
     $pastaInst = Join-Path $script:Pasta 'Instaladores'
     $resultado = New-Object System.Collections.ArrayList
     $vistas = @{}
+    $script:InicioInstalacoes = $null
     Watch-JanelasNovas $vistas | Out-Null   # o que ja estava aberto nao entra no relatorio
+    $script:InicioInstalacoes = Get-Date
 
     $assistente = Start-AceitadorDeJanelas
     try {
@@ -2161,6 +2308,8 @@ function Invoke-InstalarProgramas {
             $erro = ''
             if ($prog.Tipo -eq 'AnyDesk') {
                 $erro = Install-AnyDeskAuto -Instalador $inst.FullName -Senha $Config.AnyDeskSenha
+            } elseif ($prog.Tipo -eq 'Extrair') {
+                $erro = Install-PorExtracao -Prog $prog -Instalador $inst.FullName -Vistas $vistas
             } else {
                 $argsInst = if ($prog.Tipo -eq 'Inno') { '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' } else { '/S' }
                 # /DIR: sem isso o Inno reaproveita a pasta de uma instalacao antiga
@@ -2505,6 +2654,11 @@ function Invoke-ModoAutomatico {
             Write-Log ("LedVision abriu sozinho depois do reinicio: {0}" -f $(if (-not $procLed.Count) { 'NAO' } elseif ($ledAdmin) { 'SIM, como administrador' } else { 'SIM, mas SEM administrador' })) $(if ($ledAberto) { 'ok' } else { 'erro' })
             $anyId = Get-AnyDeskId
             Write-Log "ID do AnyDesk: $(if ($anyId) { $anyId } else { 'nao encontrado' })" $(if ($anyId) { 'ok' } else { 'warn' })
+            # 3o teste: minutos depois do fim, o diagnostico achou OOBEInProgress=1.
+            # Fica no log para comparar com o que o diagnostico mostrar depois.
+            $st = Get-ItemProperty 'HKLM:\SYSTEM\Setup' -ErrorAction SilentlyContinue
+            $img = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Setup\State' -ErrorAction SilentlyContinue).ImageState
+            Write-Log "Estado da instalacao do Windows: OOBEInProgress=$($st.OOBEInProgress) SystemSetupInProgress=$($st.SystemSetupInProgress) ImageState=$img" 'info'
 
             $ruins = @($programas | Where-Object { $_.Status -in 'FALHOU','SEM INSTALADOR' })
             $ok = ($ruins.Count -eq 0) -and $ledAberto -and $anyId
