@@ -14,6 +14,7 @@ const OUT_DIR = "public/downloads";
 const raiz = [
   "INICIAR.cmd",
   "GO.cmd",
+  "DIAGNOSTICO.cmd",
   "ConfiguradorPainelLED.ps1",
   "Wallpaper.jpg",
   "LEIA-ME.txt",

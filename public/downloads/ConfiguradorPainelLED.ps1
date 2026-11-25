@@ -1119,9 +1119,15 @@ function Invoke-Validacao {
     $script:vOk = 0; $script:vFalhas = 0
 
     Test-Item 'Plano de energia de alto desempenho' { (powercfg /getactivescheme) -match 'Desempenho|Performance' }
-    Test-Item 'Tela nunca desliga (tomada)'         { ((powercfg /query SCHEME_CURRENT SUB_VIDEO VIDEOIDLE) -match 'Indice de Configuracao de Energia Atual de CA: 0x00000000|Current AC Power Setting Index: 0x00000000') }
-    Test-Item 'Fechar a tampa: nada a fazer (AC e DC)' { ((powercfg /query SCHEME_CURRENT 4f971e89-eebd-4455-a8de-9e59040e7347 5ca83367-6e45-459f-a27b-476b1d01c936) -join ' ') -notmatch '0x0000000[1-3]' }
-    Test-Item 'Suspender: nunca (AC e DC)'          { ((powercfg /query SCHEME_CURRENT SUB_SLEEP STANDBYIDLE) -join ' ') -notmatch '0x0000000[1-9]' }
+    # As 2 ultimas linhas "0x........" do powercfg sao os valores ATUAIS (tomada
+    # e bateria), em qualquer idioma. O texto em portugues muda entre versoes do
+    # Windows, e as linhas "Incremento"/"Minimo" tambem tem 0x: comparar texto
+    # dava NAO APLICADO mesmo com a energia certa.
+    # /qh inclui as opcoes ocultas (a tampa fica oculta quando vira politica).
+    $atual = { param($s) @((powercfg /qh SCHEME_CURRENT @s) | Where-Object { $_ -match '0x[0-9a-fA-F]{8}\s*$' } | Select-Object -Last 2 | ForEach-Object { [Convert]::ToInt32(($_ -replace '.*0x', ''), 16) }) }
+    Test-Item 'Tela nunca desliga (tomada)'         { $v = & $atual @('SUB_VIDEO','VIDEOIDLE'); $v.Count -eq 2 -and $v[0] -eq 0 }
+    Test-Item 'Fechar a tampa: nada a fazer (AC e DC)' { $v = & $atual @('SUB_BUTTONS','LIDACTION'); $v.Count -eq 2 -and $v[0] -eq 0 -and $v[1] -eq 0 }
+    Test-Item 'Suspender: nunca (AC e DC)'          { $v = & $atual @('SUB_SLEEP','STANDBYIDLE'); $v.Count -eq 2 -and $v[0] -eq 0 -and $v[1] -eq 0 }
     Test-Item 'Atualizacoes agendadas na madrugada' { (Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name ScheduledInstallTime -ErrorAction SilentlyContinue).ScheduledInstallTime -ge 0 }
     Test-Item 'Tarefa de atualizacao noturna criada' { [bool](Get-ScheduledTask -TaskName 'PainelLED - Atualizacoes noturnas' -ErrorAction SilentlyContinue) }
     if ($Opcoes -and $Opcoes.ReinicioAuto) {
@@ -1905,13 +1911,35 @@ $script:ChaveAuto   = 'HKLM:\SOFTWARE\GlobalLED\ModoAutomatico'
 
 # Programas instalados no modo automatico, na ordem. Arquivo = nome do
 # instalador na pasta Instaladores; Registro = nome no "Adicionar/remover".
+# Exe = o programa instalado: "ja instalado" so vale se o registro existir E
+# esse arquivo existir (no 1o teste o NovaLCT ficou registrado, mas instalado
+# no perfil temporario da tela inicial, e o kit pulou a instalacao).
+# O NovaLCT instala dentro do perfil do usuario: Pasta forca o lugar certo.
 $script:ProgramasAuto = @(
-    @{ Nome = 'AnyDesk';            Arquivo = 'AnyDesk*.exe';            Registro = '^AnyDesk';                Tipo = 'AnyDesk' }
-    @{ Nome = 'LedVision';          Arquivo = 'LEDVISION*.exe';          Registro = '^LED ?VISION';            Tipo = 'NSIS' }
-    @{ Nome = 'NovaLCT';            Arquivo = 'NovaLCT*.exe';            Registro = '^NovaLCT';                Tipo = 'Inno' }
-    @{ Nome = 'LEDTool';            Arquivo = 'LEDTool*.exe';            Registro = '^LED ?Tool';              Tipo = 'NSIS' }
-    @{ Nome = 'LEDBatchController'; Arquivo = 'LEDBatchController*.exe'; Registro = '^LED ?Batch ?Controller'; Tipo = 'NSIS' }
+    @{ Nome = 'AnyDesk';            Arquivo = 'AnyDesk*.exe';            Registro = '^AnyDesk';                Tipo = 'AnyDesk'
+       Exe = { Join-Path ${env:ProgramFiles(x86)} 'AnyDesk\AnyDesk.exe' } }
+    @{ Nome = 'LedVision';          Arquivo = 'LEDVISION*.exe';          Registro = '^LED ?VISION';            Tipo = 'NSIS'
+       Exe = { Join-Path ${env:ProgramFiles(x86)} 'ColorLight\LEDVISION.exe' } }
+    @{ Nome = 'NovaLCT';            Arquivo = 'NovaLCT*.exe';            Registro = '^NovaLCT';                Tipo = 'Inno'
+       Exe = { Join-Path $env:APPDATA 'Nova Star\NovaLCT\Bin\NovaLCT.exe' }; Pasta = { Join-Path $env:APPDATA 'Nova Star\NovaLCT' } }
+    @{ Nome = 'LEDTool';            Arquivo = 'LEDTool*.exe';            Registro = '^LED ?Tool';              Tipo = 'NSIS'
+       Exe = { Join-Path $env:ProgramFiles 'LEDTool\client\LED Tool.exe' } }
+    @{ Nome = 'LEDBatchController'; Arquivo = 'LEDBatchController*.exe'; Registro = '^LED ?Batch ?Controller'; Tipo = 'NSIS'
+       Exe = { Join-Path ${env:ProgramFiles(x86)} 'LEDBatchController\LEDBatchController\LEDBatchController.exe' } }
 )
+
+function Test-ProgramaPronto {
+    param($Prog)
+    if (-not (Test-ProgramaNoRegistro $Prog.Registro)) { return $false }
+    if ($Prog.Exe) {
+        $exe = & $Prog.Exe
+        if (-not (Test-Path -LiteralPath $exe)) {
+            Write-Log "$($Prog.Nome): aparece no Windows, mas o programa nao esta em $exe - vai instalar de novo." 'warn'
+            return $false
+        }
+    }
+    return $true
+}
 
 function Get-ConfigLocal {
     $cfg = [ordered]@{ AnyDeskSenha = ''; WifiNome = ''; WifiSenha = ''; PrefixoNome = ''; HoraAtualizacao = '00:30' }
@@ -2045,19 +2073,32 @@ function Install-AnyDeskAuto {
 
     # A senha vai pela entrada padrao (como o "echo senha | AnyDesk.exe" do
     # manual), nunca pela linha de comando nem em arquivo.
+    # Confirmacao: o AnyDesk grava a senha em C:\ProgramData\AnyDesk\*.conf.
+    # No 2o teste nao apareceu nenhuma confirmacao no log, entao agora o
+    # codigo de resposta de cada tentativa e a gravacao do arquivo vao para o log.
+    $confs = @('service.conf', 'system.conf') | ForEach-Object { Join-Path $env:ProgramData "AnyDesk\$_" }
+    Get-Service AnyDesk -ErrorAction SilentlyContinue | Where-Object { $_.Status -ne 'Running' } | Start-Service -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 5
     foreach ($argSenha in @('--set-password _full_access', '--set-password')) {
         try {
+            $antes = @($confs | ForEach-Object { if (Test-Path $_) { (Get-Item $_).LastWriteTimeUtc.Ticks } else { 0 } })
             $psi = New-Object Diagnostics.ProcessStartInfo $exe, $argSenha
             $psi.UseShellExecute = $false; $psi.RedirectStandardInput = $true; $psi.CreateNoWindow = $true
             $pr = [Diagnostics.Process]::Start($psi)
             $pr.StandardInput.WriteLine($Senha); $pr.StandardInput.Close()
-            [void]$pr.WaitForExit(30000)
-            if ($pr.ExitCode -eq 0) {
+            if (-not $pr.WaitForExit(30000)) { try { $pr.Kill() } catch { } }
+            Start-Sleep -Seconds 2
+            $depois = @($confs | ForEach-Object { if (Test-Path $_) { (Get-Item $_).LastWriteTimeUtc.Ticks } else { 0 } })
+            $gravou = (($antes -join ',') -ne ($depois -join ','))
+            $codigo = if ($pr.HasExited) { $pr.ExitCode } else { 'sem resposta' }
+            Write-Log "   AnyDesk $argSenha -> codigo $codigo, configuracao gravada: $(if ($gravou) { 'sim' } else { 'nao' })" 'info'
+            if ($codigo -eq 0 -or $gravou) {
                 Write-Log "   Acesso nao supervisionado ligado ($(if ($argSenha -match 'full') { 'perfil Acesso integral' } else { 'perfil padrao' }))." 'ok'
                 return ''
             }
-        } catch { }
+        } catch {
+            Write-Log "   AnyDesk ${argSenha}: $($_.Exception.Message)" 'warn'
+        }
     }
     return 'instalou, mas a senha de acesso nao supervisionado nao foi aceita'
 }
@@ -2097,10 +2138,15 @@ function Invoke-InstalarProgramas {
             $inst = Get-ChildItem $pastaInst -Filter $prog.Arquivo -File -ErrorAction SilentlyContinue |
                     Where-Object { $_.FullName -notmatch '(?i)\\Prontos\\' } |
                     Sort-Object LastWriteTime -Descending | Select-Object -First 1
-            if (Test-ProgramaNoRegistro $prog.Registro) {
+            if (Test-ProgramaPronto $prog) {
                 Write-Log "$($prog.Nome): ja instalado." 'ok'
-                if ($prog.Tipo -eq 'AnyDesk' -and $inst) { [void](Install-AnyDeskAuto -Instalador $inst.FullName -Senha $Config.AnyDeskSenha) }
-                [void]$resultado.Add([pscustomobject]@{ Programa = $prog.Nome; Status = 'JA INSTALADO'; Detalhe = '' })
+                $det = ''
+                if ($prog.Tipo -eq 'AnyDesk' -and $inst) {
+                    # Mesmo ja instalado, a senha do acesso nao supervisionado e gravada
+                    $det = Install-AnyDeskAuto -Instalador $inst.FullName -Senha $Config.AnyDeskSenha
+                    if ($det) { Write-Log "AnyDesk: $det" 'erro' }
+                }
+                [void]$resultado.Add([pscustomobject]@{ Programa = $prog.Nome; Status = $(if ($det) { 'FALHOU' } else { 'JA INSTALADO' }); Detalhe = $det })
                 continue
             }
             if (-not $inst) {
@@ -2117,9 +2163,17 @@ function Invoke-InstalarProgramas {
                 $erro = Install-AnyDeskAuto -Instalador $inst.FullName -Senha $Config.AnyDeskSenha
             } else {
                 $argsInst = if ($prog.Tipo -eq 'Inno') { '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' } else { '/S' }
+                # /DIR: sem isso o Inno reaproveita a pasta de uma instalacao antiga
+                # (no 1o teste, a do perfil temporario defaultuser0)
+                if ($prog.Pasta) { $argsInst += " /DIR=`"$(& $prog.Pasta)`"" }
                 $p = Start-Process -FilePath $inst.FullName -ArgumentList $argsInst -PassThru
                 $limite = (Get-Date).AddMinutes(20)
                 while (-not $p.HasExited -and (Get-Date) -lt $limite) { Watch-JanelasNovas $vistas; Start-Sleep -Seconds 2 }
+                if ($p.HasExited -and ((Get-Date) - $inicio).TotalSeconds -lt 15) {
+                    # Saiu rapido demais (LEDTool no 2o teste): registra o que ele abriu
+                    $novos = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.StartTime -gt $inicio } | ForEach-Object { $_.ProcessName } | Select-Object -Unique)
+                    Write-Log "   o instalador fechou em $([int]((Get-Date) - $inicio).TotalSeconds)s (codigo $($p.ExitCode)); processos novos: $(if ($novos) { $novos -join ', ' } else { 'nenhum' })" 'warn'
+                }
                 if (-not $p.HasExited) {
                     try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch { }
                     $erro = 'instalador travou por 20 min e foi encerrado'
@@ -2127,7 +2181,7 @@ function Invoke-InstalarProgramas {
                 Wait-InstaladoresFilhos -Desde $inicio -Vistas $vistas
             }
             $min = [math]::Round(((Get-Date) - $inicio).TotalMinutes, 1)
-            if (-not $erro -and -not (Test-ProgramaNoRegistro $prog.Registro)) { $erro = 'terminou, mas nao aparece como instalado no Windows' }
+            if (-not $erro -and -not (Test-ProgramaPronto $prog)) { $erro = 'terminou, mas o programa nao ficou instalado' }
             if ($erro) {
                 Write-Log "$($prog.Nome): FALHOU - $erro ($min min)." 'erro'
                 [void]$resultado.Add([pscustomobject]@{ Programa = $prog.Nome; Status = 'FALHOU'; Detalhe = $erro })
@@ -2150,41 +2204,102 @@ function Invoke-InstalarProgramas {
     return $resultado
 }
 
-# Opcoes do LedVision iguais ao notebook modelo: inicia com o Windows,
-# exibe o programa sozinho, comeca minimizado e em portugues.
+# Grava as 4 opcoes num LEDVISION.cfg. PreserveWhitespace: so esses campos
+# mudam, o resto do arquivo fica identico.
+function Set-OpcoesCfgLedVision {
+    param([string]$Cfg)
+    $x = New-Object Xml.XmlDocument
+    $x.PreserveWhitespace = $true
+    $x.Load($Cfg)
+    $valores = [ordered]@{ '/sysConfig/Language' = 'Portuguese'; '//IsAppAutoRun' = '1'; '//IsAutoPlay' = '1'; '//IsStartMin' = '1' }
+    foreach ($xp in $valores.Keys) {
+        $nos = $x.SelectNodes($xp)
+        if ($nos.Count -eq 0) { Write-Log "   campo $xp nao existe em $Cfg" 'warn' }
+        foreach ($n in $nos) { $n.InnerText = $valores[$xp] }
+    }
+    $ws = New-Object Xml.XmlWriterSettings
+    $ws.Encoding = New-Object Text.UTF8Encoding($false)
+    $w = [Xml.XmlWriter]::Create($Cfg, $ws); $x.Save($w); $w.Close()
+}
+
+# Diz se um processo esta rodando como administrador (elevado).
+Add-Type -ErrorAction SilentlyContinue -TypeDefinition @'
+using System; using System.Runtime.InteropServices;
+public class GLToken {
+  [DllImport("advapi32.dll", SetLastError=true)] static extern bool OpenProcessToken(IntPtr h, uint a, out IntPtr t);
+  [DllImport("advapi32.dll", SetLastError=true)] static extern bool GetTokenInformation(IntPtr t, int c, out int v, int l, out int r);
+  [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint a, bool i, int pid);
+  [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+  public static int Elevado(int pid) {
+    IntPtr p = OpenProcess(0x1000, false, pid); if (p == IntPtr.Zero) return -1;
+    IntPtr t; if (!OpenProcessToken(p, 0x8, out t)) { CloseHandle(p); return -1; }
+    int v, r; bool ok = GetTokenInformation(t, 20, out v, 4, out r);
+    CloseHandle(t); CloseHandle(p); return ok ? (v != 0 ? 1 : 0) : -1;
+  }
+}
+'@
+
+# Opcoes do LedVision iguais ao notebook modelo (inicia com o Windows,
+# exibe o programa sozinho, minimizado e em portugues) e abertura com o
+# Windows COMO ADMINISTRADOR, sem pergunta nenhuma.
 function Set-LedVisionAuto {
-    Write-Log 'LEDVISION: INICIALIZACAO AUTOMATICA' 'title'
+    Write-Log 'LEDVISION: OPCOES E INICIALIZACAO COMO ADMINISTRADOR' 'title'
     $exe = Join-Path ${env:ProgramFiles(x86)} 'ColorLight\LEDVISION.exe'
-    if (-not (Test-Path $exe)) { Write-Log 'LEDVISION.exe nao encontrado - opcoes nao aplicadas.' 'warn'; return $false }
+    if (-not (Test-Path $exe)) { Write-Log 'LEDVISION.exe nao encontrado - opcoes nao aplicadas.' 'erro'; return $false }
+    $ok = $true
     try {
+        $cfgPF  = Join-Path (Split-Path $exe) 'LEDVISION.cfg'
+        $cfgDoc = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Colorlight\LEDVISION\LEDVISION_Config\LEDVISION.cfg'
+
+        # O LEDVISION.cfg NAO vem no instalador: o LedVision cria na 1a vez que
+        # abre (por isso o 2o teste falhou). Abre uma vez, espera o arquivo, fecha.
+        if (-not (Test-Path $cfgPF) -and -not (Test-Path $cfgDoc)) {
+            Write-Log '   Abrindo o LedVision uma vez para ele criar o arquivo de opcoes...' 'info'
+            Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -WindowStyle Minimized | Out-Null
+            $fim = (Get-Date).AddSeconds(90)
+            while ((Get-Date) -lt $fim -and -not (Test-Path $cfgPF) -and -not (Test-Path $cfgDoc)) { Start-Sleep -Seconds 2 }
+            Start-Sleep -Seconds 5
+        }
         # Fechado: aberto, ele regrava o arquivo por cima ao sair
         Get-Process LEDVISION -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-        $dir = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Colorlight\LEDVISION\LEDVISION_Config'
-        $cfg = Join-Path $dir 'LEDVISION.cfg'
-        if (-not (Test-Path $cfg)) {
-            New-Item -ItemType Directory -Path $dir -Force | Out-Null
-            Copy-Item (Join-Path (Split-Path $exe) 'LEDVISION.cfg') $cfg -Force
+        Start-Sleep -Seconds 2
+
+        if (-not (Test-Path $cfgDoc) -and (Test-Path $cfgPF)) {
+            [void][IO.Directory]::CreateDirectory((Split-Path $cfgDoc))
+            [IO.File]::Copy($cfgPF, $cfgDoc, $true)
         }
-        # PreserveWhitespace: so os 4 campos mudam, o resto do arquivo fica identico
-        $x = New-Object Xml.XmlDocument
-        $x.PreserveWhitespace = $true
-        $x.Load($cfg)
-        $valores = [ordered]@{ '/sysConfig/Language' = 'Portuguese'; '//IsAppAutoRun' = '1'; '//IsAutoPlay' = '1'; '//IsStartMin' = '1' }
-        foreach ($xp in $valores.Keys) {
-            $nos = $x.SelectNodes($xp)
-            if ($nos.Count -eq 0) { Write-Log "   campo $xp nao existe nesta versao do LedVision." 'warn' }
-            foreach ($n in $nos) { $n.InnerText = $valores[$xp] }
+        $gravados = 0
+        foreach ($c in @($cfgDoc, $cfgPF)) {
+            if (-not (Test-Path $c)) { continue }
+            try { Set-OpcoesCfgLedVision $c; $gravados++; Write-Log "   Opcoes gravadas em $c" 'ok' }
+            catch { Write-Log "   Nao consegui gravar ${c}: $($_.Exception.Message)" 'erro'; $ok = $false }
         }
-        $ws = New-Object Xml.XmlWriterSettings
-        $ws.Encoding = New-Object Text.UTF8Encoding($false)
-        $w = [Xml.XmlWriter]::Create($cfg, $ws); $x.Save($w); $w.Close()
-        Set-Reg 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' 'LEDVISION' $exe 'String'
-        Write-Log 'LedVision: inicia com o Windows, exibe o programa, minimizado e em portugues.' 'ok'
-        return $true
+        if ($gravados -eq 0) { Write-Log '   O LedVision nao criou o arquivo de opcoes - opcoes NAO aplicadas.' 'erro'; $ok = $false }
     } catch {
-        Write-Log "Falha nas opcoes do LedVision: $($_.Exception.Message)" 'erro'
-        return $false
+        Write-Log "Falha nas opcoes do LedVision: $($_.Exception.Message)" 'erro'; $ok = $false
     }
+
+    try {
+        # Inicio pela entrada comum do Windows abre SEM administrador (2o teste).
+        # Agora: tarefa no logon com privilegio maximo (abre como administrador,
+        # sem pergunta). A marca "executar como administrador" no .exe faz o
+        # Windows ignorar a entrada comum (nao abre duas vezes, nem sem admin)
+        # e faz o atalho da area de trabalho tambem abrir como administrador.
+        Set-Reg 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers' $exe '~ RUNASADMIN' 'String'
+        $adm  = (New-Object Security.Principal.SecurityIdentifier 'S-1-5-32-544').Translate([Security.Principal.NTAccount]).Value
+        $acao = New-ScheduledTaskAction -Execute $exe -WorkingDirectory (Split-Path $exe)
+        $gat  = New-ScheduledTaskTrigger -AtLogOn
+        $gat.Delay = 'PT20S'
+        $pri  = New-ScheduledTaskPrincipal -GroupId $adm -RunLevel Highest
+        # Sem limite de tempo (o padrao encerraria o LedVision depois de 3 dias)
+        # e prioridade normal (o padrao das tarefas deixa o programa mais lento).
+        $conf = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -Priority 4 -MultipleInstances IgnoreNew
+        Register-ScheduledTask -TaskName 'PainelLED - LedVision' -Action $acao -Trigger $gat -Principal $pri -Settings $conf -Force -ErrorAction Stop | Out-Null
+        Write-Log 'LedVision abre com o Windows COMO ADMINISTRADOR, sem pergunta (tarefa "PainelLED - LedVision").' 'ok'
+    } catch {
+        Write-Log "Falha ao agendar o LedVision como administrador: $($_.Exception.Message)" 'erro'; $ok = $false
+    }
+    return $ok
 }
 
 function Set-EtapaAutomatica {
@@ -2380,9 +2495,14 @@ function Invoke-ModoAutomatico {
             $falhasVal = [int](Invoke-Validacao)
 
             $programas = @()
-            try { $programas = @(Get-Content (Join-Path $script:PastaDados 'programas.json') -Raw -Encoding UTF8 | ConvertFrom-Json) } catch { }
-            $ledAberto = [bool](Get-Process LEDVISION -ErrorAction SilentlyContinue)
-            Write-Log "LedVision abriu sozinho depois do reinicio: $(if ($ledAberto) { 'SIM' } else { 'NAO' })" $(if ($ledAberto) { 'ok' } else { 'erro' })
+            # ForEach-Object desfaz a lista: no PowerShell 5.1 o ConvertFrom-Json
+            # devolve a lista inteira como UM item (no 2o teste o inventario saiu
+            # com "System.Object[]" no lugar do resultado de cada programa).
+            try { $programas = @(Get-Content (Join-Path $script:PastaDados 'programas.json') -Raw -Encoding UTF8 | ConvertFrom-Json | ForEach-Object { $_ }) } catch { }
+            $procLed = @(Get-Process LEDVISION -ErrorAction SilentlyContinue)
+            $ledAdmin = @($procLed | Where-Object { [GLToken]::Elevado($_.Id) -eq 1 }).Count -gt 0
+            $ledAberto = $procLed.Count -gt 0 -and $ledAdmin
+            Write-Log ("LedVision abriu sozinho depois do reinicio: {0}" -f $(if (-not $procLed.Count) { 'NAO' } elseif ($ledAdmin) { 'SIM, como administrador' } else { 'SIM, mas SEM administrador' })) $(if ($ledAberto) { 'ok' } else { 'erro' })
             $anyId = Get-AnyDeskId
             Write-Log "ID do AnyDesk: $(if ($anyId) { $anyId } else { 'nao encontrado' })" $(if ($anyId) { 'ok' } else { 'warn' })
 
@@ -2410,7 +2530,8 @@ function Invoke-ModoAutomatico {
 
             $linhas = @("$env:COMPUTERNAME   |   serie $($dados.Serie)", "AnyDesk: $(if ($anyId) { $anyId } else { 'NAO ENCONTRADO' })")
             foreach ($p in $programas) { $linhas += "$($p.Programa): $($p.Status)" }
-            if (-not $ledAberto) { $linhas += 'LedVision NAO abriu sozinho depois do reinicio' }
+            if (-not $procLed.Count) { $linhas += 'LedVision NAO abriu sozinho depois do reinicio' }
+            elseif (-not $ledAdmin) { $linhas += 'LedVision abriu, mas SEM administrador' }
             if ($falhasVal -gt 0) { $linhas += "$falhasVal item(ns) da validacao com atencao (veja o relatorio)" }
             try { Stop-Transcript | Out-Null } catch { }
             Show-TelaFinal -Ok $ok -Linhas $linhas
