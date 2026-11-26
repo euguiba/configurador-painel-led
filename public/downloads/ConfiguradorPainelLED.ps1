@@ -2136,6 +2136,12 @@ function Install-PorExtracao {
         if ($LASTEXITCODE -gt 1) { return "erro ao copiar os arquivos do programa (7-Zip codigo $LASTEXITCODE)" }
         if (-not (Test-Path -LiteralPath $exe)) { return "o programa nao apareceu em $exe" }
         Write-Log "   Arquivos do programa copiados para $destino" 'ok'
+        # 4o teste: o LED Tool ficava eternamente em "carregando". Ele sobe um
+        # nginx interno que grava logs\ e temp\ na propria pasta, e em Arquivos
+        # de Programas o usuario comum so tem leitura (o error.log nem era
+        # atualizado). Libera a gravacao para o grupo Usuarios (S-1-5-32-545).
+        & icacls.exe $destino /grant '*S-1-5-32-545:(OI)(CI)M' /T /C /Q 2>&1 | Out-Null
+        Write-Log "   Pasta liberada para gravacao (icacls codigo $LASTEXITCODE)" 'info'
 
         # Visual C++ que o instalador traz (modo silencioso oficial da Microsoft)
         foreach ($vc in @($Prog.VcRedist | Where-Object { $_ })) {
@@ -2430,11 +2436,13 @@ function Set-LedVisionAuto {
 
     try {
         # Inicio pela entrada comum do Windows abre SEM administrador (2o teste).
-        # Agora: tarefa no logon com privilegio maximo (abre como administrador,
-        # sem pergunta). A marca "executar como administrador" no .exe faz o
-        # Windows ignorar a entrada comum (nao abre duas vezes, nem sem admin)
-        # e faz o atalho da area de trabalho tambem abrir como administrador.
-        Set-Reg 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers' $exe '~ RUNASADMIN' 'String'
+        # Tarefa no logon com privilegio maximo: abre como administrador, sem
+        # pergunta. 4o teste: a marca "executar como administrador" do Windows
+        # (RUNASADMIN) + a entrada Run que o proprio LedVision cria faziam
+        # aparecer o "Permitir?" na inicializacao. Sem marca e sem entrada Run,
+        # so a tarefa abre o LedVision.
+        Remove-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers' -Name $exe -ErrorAction SilentlyContinue
+        Remove-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run' -Name LEDVISION -ErrorAction SilentlyContinue
         $adm  = (New-Object Security.Principal.SecurityIdentifier 'S-1-5-32-544').Translate([Security.Principal.NTAccount]).Value
         $acao = New-ScheduledTaskAction -Execute $exe -WorkingDirectory (Split-Path $exe)
         $gat  = New-ScheduledTaskTrigger -AtLogOn
@@ -2572,6 +2580,22 @@ function Invoke-ModoAutomatico {
         return 3
     }
 
+    # Somente pendrive TESTE: liga o acesso pelo cabo para o PC de testes.
+    # O GO.cmd copia o pendrive inteiro para C:\ConfiguradorLED, entao os
+    # arquivos ficam no disco mesmo sem o pendrive. No kit de campo
+    # rede-teste.json e rede-teste.ps1 nao existem e nada acontece.
+    function Start-RedeTeste {
+        $raizes = @($script:Pasta) + @([IO.DriveInfo]::GetDrives() | Where-Object { $_.IsReady -and $_.DriveType -eq 'Removable' } | ForEach-Object { $_.RootDirectory.FullName })
+        foreach ($r in $raizes) {
+            $rt = Join-Path $r '_sistema\rede-teste.ps1'
+            if (-not ((Test-Path (Join-Path $r 'rede-teste.json')) -and (Test-Path $rt))) { continue }
+            Write-Log "Kit de teste ($r): ligando a rede de teste pelo cabo" 'info'
+            try { & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $rt *>&1 | ForEach-Object { Write-Log "  $_" 'info' } }
+            catch { Write-Log "Rede de teste falhou: $_" 'warn' }
+            return
+        }
+    }
+
     switch ($Etapa) {
         'Preparar' {
             [void](Invoke-ConectarWifi -Nome $cfg.WifiNome -Senha $cfg.WifiSenha -EsperarSeg 20)
@@ -2593,6 +2617,8 @@ function Invoke-ModoAutomatico {
                 break
             }
 
+            # Pendrive TESTE: o PC de testes acompanha tudo pelo cabo desde aqui
+            Start-RedeTeste
             [void](Invoke-ConectarWifi -Nome $cfg.WifiNome -Senha $cfg.WifiSenha)
             Import-CertificadosKit
             Invoke-DesarmarAntivirus
@@ -2676,6 +2702,20 @@ function Invoke-ModoAutomatico {
             }
             foreach ($p in $programas) { $linha[$p.Programa] = $p.Status }
             Save-Inventario $linha
+
+            # 4o teste: o arquivo de resposta do Windows liga o logon automatico
+            # com LogonCount=9. A cada entrada o Windows desconta 1 e, no zero,
+            # APAGA o logon automatico (o notebook passou a parar na tela de
+            # entrar). Painel precisa voltar sozinho depois de queda de energia:
+            # tira o contador e deixa o logon automatico permanente.
+            $wl = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+            Remove-ItemProperty $wl -Name AutoLogonCount -ErrorAction SilentlyContinue
+            Set-ItemProperty $wl -Name AutoAdminLogon -Value '1'
+            Set-ItemProperty $wl -Name DefaultUserName -Value $env:USERNAME
+            if ($null -eq (Get-ItemProperty $wl -Name DefaultPassword -ErrorAction SilentlyContinue)) { Set-ItemProperty $wl -Name DefaultPassword -Value '' }
+            Write-Log "Logon automatico permanente na conta $env:USERNAME (sem contador)." 'ok'
+
+            Start-RedeTeste
 
             # Fim do modo automatico: tira a tarefa e apaga as senhas do disco
             Remove-EtapaAutomatica

@@ -39,3 +39,4 @@ instaladores-locais/
 
 # Senhas do modo automatico (AnyDesk e Wi-Fi): so no pendrive, nunca no GitHub nem no site
 config-local.json
+rede-teste.json

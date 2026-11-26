@@ -101,5 +101,30 @@ if (Test-Path $exe) {
 Secao 'REDE'
 T ((netsh wlan show interfaces | Select-String 'SSID|Estado|State' | ForEach-Object { $_.Line.Trim() }) -join ' | ')
 T "internet: $(Test-Connection 8.8.8.8 -Count 1 -Quiet)"
+T 'Adaptadores:'
+Get-NetAdapter -IncludeHidden -ErrorAction SilentlyContinue | ForEach-Object { T "  $($_.Name) | $($_.InterfaceDescription) | $($_.Status) | $(@(Get-NetIPAddress -InterfaceIndex $_.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).IPAddress -join ',')" }
+T 'Dispositivos de rede/USB com problema:'
+Get-PnpDevice -ErrorAction SilentlyContinue | Where-Object { $_.Class -in 'Net','USB' -and $_.Status -ne 'OK' } | ForEach-Object { T "  $($_.Status) | $($_.Class) | $($_.FriendlyName) | $($_.InstanceId)" }
+T "Rede de teste: WinRM $((Get-Service WinRM).Status) | regras: $(@(Get-NetFirewallRule -Group 'GlobalLED Teste' -ErrorAction SilentlyContinue).Count)"
+
+Secao 'CONTAS E ADMINISTRADOR'
+$id = [Security.Principal.WindowsIdentity]::GetCurrent()
+T "conta atual: $($id.Name) | elevado agora: $((New-Object Security.Principal.WindowsPrincipal $id).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))"
+$adm = Get-LocalGroup -SID 'S-1-5-32-544'
+T "grupo $($adm.Name): $((Get-LocalGroupMember -SID 'S-1-5-32-544' -ErrorAction SilentlyContinue).Name -join ', ')"
+Get-LocalUser | ForEach-Object { T "  usuario $($_.Name) | ativo $($_.Enabled) | senha exigida $($_.PasswordRequired) | ultimo logon $($_.LastLogon)" }
+$pol = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -ErrorAction SilentlyContinue
+T "UAC: EnableLUA=$($pol.EnableLUA) ConsentPromptBehaviorAdmin=$($pol.ConsentPromptBehaviorAdmin) LocalAccountTokenFilterPolicy=$($pol.LocalAccountTokenFilterPolicy)"
+T "Winlogon: DefaultPassword definida: $([bool]$wl.DefaultPassword) | AutoLogonCount=$($wl.AutoLogonCount)"
+
+Secao 'LEDTOOL'
+$lt = Join-Path $env:ProgramFiles 'LEDTool\client'
+T "pasta existe: $(Test-Path $lt) | LED Tool.exe: $(Test-Path (Join-Path $lt 'LED Tool.exe'))"
+if (Test-Path $lt) {
+    T "permissao Usuarios: $(((Get-Acl $lt).Access | Where-Object { $_.IdentityReference -match 'Usu|Users' } | ForEach-Object { $_.FileSystemRights }) -join ', ')"
+    Get-Process -Name 'LED Tool','app','nginx' -ErrorAction SilentlyContinue | ForEach-Object { T "  rodando: $($_.ProcessName) ($($_.Id))" }
+    $err = Join-Path $lt 'nginx\logs\error.log'
+    if (Test-Path $err) { T 'nginx error.log (fim):'; Get-Content $err -Tail 15 | ForEach-Object { T "  $_" } }
+}
 
 T ''; T "Pronto. Tudo em: $dest"
