@@ -13,13 +13,19 @@ const OUT_DIR = "public/downloads";
 
 const raiz = [
   "INICIAR.cmd",
+  "GO.cmd",
+  "DIAGNOSTICO.cmd",
   "ConfiguradorPainelLED.ps1",
   "Wallpaper.jpg",
   "LEIA-ME.txt",
+  // So o exemplo: o config-local.json com as senhas nunca entra no kit
+  "config-local.exemplo.json",
 ];
 
-const pastasVazias = ["Instaladores", "Backups"];
+const pastasVazias = ["Instaladores", "Backups", "Inventario"];
 const pastasComArquivos = ["_sistema"];
+// Rede de teste: so vai para o pendrive TESTE, nunca para o kit publicado
+const SO_PENDRIVE_TESTE = ["rede-teste.ps1"];
 
 async function* walk(dir, base = "") {
   const entries = await readdir(dir, { withFileTypes: true });
@@ -28,7 +34,7 @@ async function* walk(dir, base = "") {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       yield* walk(full, relative);
-    } else if (entry.isFile()) {
+    } else if (entry.isFile() && !SO_PENDRIVE_TESTE.includes(entry.name)) {
       const s = await stat(full);
       yield { name: relative, data: await readFile(full), size: s.size };
     }

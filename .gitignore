@@ -33,3 +33,10 @@ dist-ssr
 
 # Gerado pelo npm install local (o Lovable usa o bun.lock)
 package-lock.json
+
+# Instaladores dos programas (grandes e com licenca: nao vao para o GitHub nem para o site)
+instaladores-locais/
+
+# Senhas do modo automatico (AnyDesk e Wi-Fi): so no pendrive, nunca no GitHub nem no site
+config-local.json
+rede-teste.json

@@ -33,6 +33,7 @@ exit /b 1
 
 :temScript
 if "%~1"=="1" goto :configurar
+if "%~1"=="2" goto :oobe
 cls
 echo.
 echo  ==================================================
@@ -44,11 +45,17 @@ echo.
 echo   [1] Configurar este notebook  (padrao)
 echo   [2] Pular a configuracao inicial do Windows (OOBE)
 echo   [3] Copiar para este notebook e liberar o pendrive (modo portatil)
+echo   [4] MODO AUTOMATICO: configura e instala tudo sozinho (GO.cmd)
 echo.
-choice /C 123 /T 8 /D 1 /N /M "  Escolha (1, 2 ou 3), inicia sozinho em 8s: "
+choice /C 1234 /T 8 /D 1 /N /M "  Escolha (1, 2, 3 ou 4), inicia sozinho em 8s: "
+if errorlevel 4 goto :automatico
 if errorlevel 3 goto :portatil
 if errorlevel 2 goto :oobe
 goto :configurar
+
+:automatico
+call "%raiz%GO.cmd"
+exit /b 0
 
 :portatil
 set "local=C:\ConfiguradorLED"
@@ -82,7 +89,7 @@ echo  ==================================================
 echo.
 echo  Gravando o arquivo de resposta do Windows (conta Global)...
 if not exist "C:\Windows\Panther" mkdir "C:\Windows\Panther" >nul 2>&1
-set "b64=PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPHVuYXR0ZW5kIHhtbG5zPSJ1cm46c2NoZW1hcy1taWNyb3NvZnQtY29tOnVuYXR0ZW5kIj4KICA8c2V0dGluZ3MgcGFzcz0ib29iZVN5c3RlbSI+CiAgICA8Y29tcG9uZW50IG5hbWU9Ik1pY3Jvc29mdC1XaW5kb3dzLVNoZWxsLVNldHVwIiBwcm9jZXNzb3JBcmNoaXRlY3R1cmU9ImFtZDY0IiBwdWJsaWNLZXlUb2tlbj0iMzFiZjM4NTZhZDM2NGUzNSIgbGFuZ3VhZ2U9Im5ldXRyYWwiIHZlcnNpb25TY29wZT0ibm9uU3hTIiB4bWxuczp3Y209Imh0dHA6Ly9zY2hlbWFzLm1pY3Jvc29mdC5jb20vV01JQ29uZmlnLzIwMDIvU3RhdGUiPgogICAgICA8T09CRT4KICAgICAgICA8SGlkZUVVTEFQYWdlPnRydWU8L0hpZGVFVUxBUGFnZT4KICAgICAgICA8SGlkZU9FTVJlZ2lzdHJhdGlvblNjcmVlbj50cnVlPC9IaWRlT0VNUmVnaXN0cmF0aW9uU2NyZWVuPgogICAgICAgIDxIaWRlT25saW5lQWNjb3VudFNjcmVlbnM+dHJ1ZTwvSGlkZU9ubGluZUFjY291bnRTY3JlZW5zPgogICAgICAgIDxIaWRlTG9jYWxBY2NvdW50U2NyZWVuPnRydWU8L0hpZGVMb2NhbEFjY291bnRTY3JlZW4+CiAgICAgICAgPEhpZGVXaXJlbGVzc1NldHVwSW5PT0JFPnRydWU8L0hpZGVXaXJlbGVzc1NldHVwSW5PT0JFPgogICAgICAgIDxQcm90ZWN0WW91clBDPjM8L1Byb3RlY3RZb3VyUEM+CiAgICAgICAgPFNraXBNYWNoaW5lT09CRT50cnVlPC9Ta2lwTWFjaGluZU9PQkU+CiAgICAgICAgPFNraXBVc2VyT09CRT50cnVlPC9Ta2lwVXNlck9PQkU+CiAgICAgIDwvT09CRT4KICAgICAgPFVzZXJBY2NvdW50cz4KICAgICAgICA8TG9jYWxBY2NvdW50cz4KICAgICAgICAgIDxMb2NhbEFjY291bnQgd2NtOmFjdGlvbj0iYWRkIj4KICAgICAgICAgICAgPE5hbWU+R2xvYmFsPC9OYW1lPgogICAgICAgICAgICA8R3JvdXA+QWRtaW5pc3RyYXRvcnM8L0dyb3VwPgogICAgICAgICAgICA8RGlzcGxheU5hbWU+R2xvYmFsPC9EaXNwbGF5TmFtZT4KICAgICAgICAgICAgPERlc2NyaXB0aW9uPkNvbnRhIGxvY2FsIGRvIHBhaW5lbCBkZSBMRUQ8L0Rlc2NyaXB0aW9uPgogICAgICAgICAgICA8UGFzc3dvcmQ+CiAgICAgICAgICAgICAgPFZhbHVlPjwvVmFsdWU+CiAgICAgICAgICAgICAgPFBsYWluVGV4dD50cnVlPC9QbGFpblRleHQ+CiAgICAgICAgICAgIDwvUGFzc3dvcmQ+CiAgICAgICAgICA8L0xvY2FsQWNjb3VudD4KICAgICAgICA8L0xvY2FsQWNjb3VudHM+CiAgICAgIDwvVXNlckFjY291bnRzPgogICAgICA8QXV0b0xvZ29uPgogICAgICAgIDxFbmFibGVkPnRydWU8L0VuYWJsZWQ+CiAgICAgICAgPFVzZXJuYW1lPkdsb2JhbDwvVXNlcm5hbWU+CiAgICAgICAgPExvZ29uQ291bnQ+OTwvTG9nb25Db3VudD4KICAgICAgICA8UGFzc3dvcmQ+CiAgICAgICAgICA8VmFsdWU+PC9WYWx1ZT4KICAgICAgICAgIDxQbGFpblRleHQ+dHJ1ZTwvUGxhaW5UZXh0PgogICAgICAgIDwvUGFzc3dvcmQ+CiAgICAgIDwvQXV0b0xvZ29uPgogICAgICA8VGltZVpvbmU+RS4gU291dGggQW1lcmljYSBTdGFuZGFyZCBUaW1lPC9UaW1lWm9uZT4KICAgIDwvY29tcG9uZW50PgogIDwvc2V0dGluZ3M+CjwvdW5hdHRlbmQ+Cg=="
+set "b64=PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPHVuYXR0ZW5kIHhtbG5zPSJ1cm46c2NoZW1hcy1taWNyb3NvZnQtY29tOnVuYXR0ZW5kIj4KICA8c2V0dGluZ3MgcGFzcz0ib29iZVN5c3RlbSI+CiAgICA8Y29tcG9uZW50IG5hbWU9Ik1pY3Jvc29mdC1XaW5kb3dzLVNoZWxsLVNldHVwIiBwcm9jZXNzb3JBcmNoaXRlY3R1cmU9ImFtZDY0IiBwdWJsaWNLZXlUb2tlbj0iMzFiZjM4NTZhZDM2NGUzNSIgbGFuZ3VhZ2U9Im5ldXRyYWwiIHZlcnNpb25TY29wZT0ibm9uU3hTIiB4bWxuczp3Y209Imh0dHA6Ly9zY2hlbWFzLm1pY3Jvc29mdC5jb20vV01JQ29uZmlnLzIwMDIvU3RhdGUiPgogICAgICA8T09CRT4KICAgICAgICA8SGlkZUVVTEFQYWdlPnRydWU8L0hpZGVFVUxBUGFnZT4KICAgICAgICA8SGlkZU9FTVJlZ2lzdHJhdGlvblNjcmVlbj50cnVlPC9IaWRlT0VNUmVnaXN0cmF0aW9uU2NyZWVuPgogICAgICAgIDxIaWRlT25saW5lQWNjb3VudFNjcmVlbnM+dHJ1ZTwvSGlkZU9ubGluZUFjY291bnRTY3JlZW5zPgogICAgICAgIDxIaWRlTG9jYWxBY2NvdW50U2NyZWVuPnRydWU8L0hpZGVMb2NhbEFjY291bnRTY3JlZW4+CiAgICAgICAgPEhpZGVXaXJlbGVzc1NldHVwSW5PT0JFPnRydWU8L0hpZGVXaXJlbGVzc1NldHVwSW5PT0JFPgogICAgICAgIDxQcm90ZWN0WW91clBDPjM8L1Byb3RlY3RZb3VyUEM+CiAgICAgICAgPFNraXBNYWNoaW5lT09CRT50cnVlPC9Ta2lwTWFjaGluZU9PQkU+CiAgICAgICAgPFNraXBVc2VyT09CRT50cnVlPC9Ta2lwVXNlck9PQkU+CiAgICAgIDwvT09CRT4KICAgICAgPFVzZXJBY2NvdW50cz4KICAgICAgICA8TG9jYWxBY2NvdW50cz4KICAgICAgICAgIDxMb2NhbEFjY291bnQgd2NtOmFjdGlvbj0iYWRkIj4KICAgICAgICAgICAgPE5hbWU+R2xvYmFsPC9OYW1lPgogICAgICAgICAgICA8R3JvdXA+QWRtaW5pc3RyYXRvcnM8L0dyb3VwPgogICAgICAgICAgICA8RGlzcGxheU5hbWU+R2xvYmFsPC9EaXNwbGF5TmFtZT4KICAgICAgICAgICAgPERlc2NyaXB0aW9uPkNvbnRhIGxvY2FsIGRvIHBhaW5lbCBkZSBMRUQ8L0Rlc2NyaXB0aW9uPgogICAgICAgICAgICA8UGFzc3dvcmQ+CiAgICAgICAgICAgICAgPFZhbHVlPjwvVmFsdWU+CiAgICAgICAgICAgICAgPFBsYWluVGV4dD50cnVlPC9QbGFpblRleHQ+CiAgICAgICAgICAgIDwvUGFzc3dvcmQ+CiAgICAgICAgICA8L0xvY2FsQWNjb3VudD4KICAgICAgICA8L0xvY2FsQWNjb3VudHM+CiAgICAgIDwvVXNlckFjY291bnRzPgogICAgICA8QXV0b0xvZ29uPgogICAgICAgIDxFbmFibGVkPnRydWU8L0VuYWJsZWQ+CiAgICAgICAgPFVzZXJuYW1lPkdsb2JhbDwvVXNlcm5hbWU+CiAgICAgICAgPExvZ29uQ291bnQ+OTk5OTwvTG9nb25Db3VudD4KICAgICAgICA8UGFzc3dvcmQ+CiAgICAgICAgICA8VmFsdWU+PC9WYWx1ZT4KICAgICAgICAgIDxQbGFpblRleHQ+dHJ1ZTwvUGxhaW5UZXh0PgogICAgICAgIDwvUGFzc3dvcmQ+CiAgICAgIDwvQXV0b0xvZ29uPgogICAgICA8VGltZVpvbmU+RS4gU291dGggQW1lcmljYSBTdGFuZGFyZCBUaW1lPC9UaW1lWm9uZT4KICAgIDwvY29tcG9uZW50PgogIDwvc2V0dGluZ3M+CjwvdW5hdHRlbmQ+Cg=="
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$b=[Convert]::FromBase64String($env:b64); [IO.File]::WriteAllBytes('C:\Windows\Panther\unattend.xml',$b); [IO.File]::WriteAllBytes('C:\Windows\System32\Sysprep\unattend.xml',$b)" >nul 2>&1
 
 if not exist "C:\Windows\Panther\unattend.xml" goto :oobeManual
@@ -131,6 +138,7 @@ reg add "HKLM\SYSTEM\Setup\Status\ChildCompletion" /v setup.exe /t REG_DWORD /d 
 reg add "HKLM\SYSTEM\Setup\Status\SysprepStatus" /v GeneralizationState /t REG_DWORD /d 7 /f >nul 2>&1
 reg add "HKLM\SYSTEM\Setup\Status\SysprepStatus" /v CleanupState /t REG_DWORD /d 2 /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Setup\OOBE" /v UnattendCreatedUser /t REG_DWORD /d 1 /f >nul 2>&1
+reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Setup\State" /v ImageState /t REG_SZ /d IMAGE_STATE_COMPLETE /f >nul 2>&1
 
 echo.
 echo  Tudo pronto. O notebook vai reiniciar e entrar direto na area
