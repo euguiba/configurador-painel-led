@@ -18,8 +18,15 @@ $cabo = Get-NetAdapter -Physical -ErrorAction SilentlyContinue |
         Where-Object { $_.MediaType -eq '802.3' -and $_.InterfaceDescription -notmatch '(?i)wi-?fi|wireless|802\.11' } |
         Sort-Object { $_.Status -ne 'Up' } | Select-Object -First 1
 
+$TarefaIp = 'PainelLED - Rede de teste (IP)'
+$VigiaIp  = 'C:\ProgramData\GlobalLED\rede-teste-ip.ps1'
+
 if ($Desligar) {
     T 'Desligando a rede de teste...' Yellow
+    Unregister-ScheduledTask -TaskName $TarefaIp -Confirm:$false -ErrorAction SilentlyContinue
+    Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -like '*rede-teste-ip.ps1*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Remove-Item $VigiaIp -Force -ErrorAction SilentlyContinue
     Get-NetFirewallRule -Group 'GlobalLED Teste' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
     Disable-PSRemoting -Force -WarningAction SilentlyContinue | Out-Null
     Stop-Service WinRM -Force -ErrorAction SilentlyContinue; Set-Service WinRM -StartupType Manual
@@ -65,6 +72,40 @@ Set-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Syste
 Get-NetFirewallRule -Group 'GlobalLED Teste' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 New-NetFirewallRule -DisplayName 'GlobalLED Teste - WinRM' -Group 'GlobalLED Teste' -Direction Inbound -Protocol TCP -LocalPort 5985 -RemoteAddress $IpPc -Action Allow | Out-Null
 New-NetFirewallRule -DisplayName 'GlobalLED Teste - Ping' -Group 'GlobalLED Teste' -Direction Inbound -Protocol ICMPv4 -IcmpType 8 -RemoteAddress $IpPc -Action Allow | Out-Null
+
+# Vigia do IP: quando o adaptador USB muda de porta o Windows cria OUTRO
+# adaptador, sem o IP de teste. Esta tarefa (so no notebook de teste) confere
+# o cabo a cada 15 s e coloca o 192.168.50.2 no adaptador que estiver ligado.
+New-Item -ItemType Directory -Path (Split-Path $VigiaIp) -Force | Out-Null
+@'
+$ip = '192.168.50.2'
+while ($true) {
+    try {
+        $cabos = @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object {
+            $_.Status -eq 'Up' -and $_.MediaType -eq '802.3' -and $_.InterfaceDescription -notmatch '(?i)wi-?fi|wireless|802\.11' })
+        foreach ($c in $cabos) {
+            $tem = Get-NetIPAddress -InterfaceIndex $c.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -eq $ip }
+            if (-not $tem) {
+                # tira o IP de qualquer outro adaptador e poe neste
+                Get-NetIPAddress -IPAddress $ip -ErrorAction SilentlyContinue | Remove-NetIPAddress -Confirm:$false -ErrorAction SilentlyContinue
+                Set-NetIPInterface -InterfaceIndex $c.ifIndex -Dhcp Disabled -ErrorAction SilentlyContinue
+                Remove-NetIPAddress -InterfaceIndex $c.ifIndex -AddressFamily IPv4 -Confirm:$false -ErrorAction SilentlyContinue
+                New-NetIPAddress -InterfaceIndex $c.ifIndex -IPAddress $ip -PrefixLength 24 -ErrorAction SilentlyContinue | Out-Null
+                Start-Sleep -Seconds 3
+                Set-NetConnectionProfile -InterfaceIndex $c.ifIndex -NetworkCategory Private -ErrorAction SilentlyContinue
+            }
+            break   # so um adaptador de cabo recebe o IP
+        }
+    } catch { }
+    Start-Sleep -Seconds 15
+}
+'@ | Set-Content -Path $VigiaIp -Encoding UTF8
+$acao = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$VigiaIp`""
+$pri  = New-ScheduledTaskPrincipal -UserId 'S-1-5-18' -LogonType ServiceAccount -RunLevel Highest
+$conf = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
+Register-ScheduledTask -TaskName $TarefaIp -Action $acao -Trigger (New-ScheduledTaskTrigger -AtStartup) -Principal $pri -Settings $conf -Force | Out-Null
+Start-ScheduledTask -TaskName $TarefaIp -ErrorAction SilentlyContinue
+T 'Vigia do IP ligado: se o adaptador mudar de porta, o IP volta sozinho em ate 15 s.'
 
 $ok = Test-Connection $IpPc -Count 2 -Quiet
 T ''

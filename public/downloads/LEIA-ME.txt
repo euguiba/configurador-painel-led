@@ -3,7 +3,7 @@
  Versao 3.8.0
 ====================================================
 
-MODO AUTOMATICO - SEM CLIQUES (v3.8.0, EM TESTE)
+MODO AUTOMATICO - SEM CLIQUES (v3.8.0)
  Montar o pendrive (uma vez):
   - Coloque na pasta Instaladores: AnyDesk, LEDVISION, NovaLCT, LEDTool
     e LEDBatchController (os .exe de sempre).
